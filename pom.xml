@@ -13,14 +13,12 @@
 
     <groupId>com.baeldung</groupId>
     <artifactId>jira-lite</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>jira-lite</name>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>Jira Lite</name>
 
     <properties>
         <java.version>21</java.version>
         <jjwt.version>0.12.6</jjwt.version>
-        <checkstyle.plugin.version>3.5.0</checkstyle.plugin.version>
-        <checkstyle.version>10.18.2</checkstyle.version>
     </properties>
 
     <dependencies>
@@ -85,23 +83,25 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>${checkstyle.plugin.version}</version>
+                <version>3.6.0</version>
+                <configuration>
+                    <configLocation>${project.basedir}/checkstyle.xml</configLocation>
+                    <sourceDirectories>
+                        <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
+                    </sourceDirectories>
+                    <consoleOutput>true</consoleOutput>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>warning</violationSeverity>
+                </configuration>
                 <dependencies>
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>
                         <artifactId>checkstyle</artifactId>
-                        <version>${checkstyle.version}</version>
+                        <version>10.18.2</version>
                     </dependency>
                 </dependencies>
-                <configuration>
-                    <configLocation>${project.basedir}/checkstyle.xml</configLocation>
-                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
-                    <consoleOutput>true</consoleOutput>
-                    <failsOnError>true</failsOnError>
-                    <failOnViolation>true</failOnViolation>
-                    <violationSeverity>warning</violationSeverity>
-                </configuration>
             </plugin>
         </plugins>
     </build>
+
 </project>

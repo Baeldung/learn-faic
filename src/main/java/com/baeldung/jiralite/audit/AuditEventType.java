@@ -1,0 +1,16 @@
+package com.baeldung.jiralite.audit;
+
+public enum AuditEventType {
+    TASK_CREATED,
+    TASK_UPDATED,
+    TASK_STATUS_CHANGED,
+    TASK_REOPENED,
+    COMMENT_ADDED,
+    SPRINT_CREATED,
+    SPRINT_STARTED,
+    SPRINT_COMPLETED,
+    ROLE_CHANGED,
+    PROJECT_CREATED,
+    PROJECT_MEMBER_ADDED,
+    PROJECT_MEMBER_REMOVED
+}

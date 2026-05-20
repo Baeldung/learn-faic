@@ -1,5 +1,7 @@
 # Jira Lite — Project Context
 
+For detailed technical guidelines, see `DEV-GUIDELINES.md`.
+
 ## Tech Stack
 
 - Java 21
@@ -12,15 +14,11 @@ Use only what's listed above. Don't pull in Lombok, MapStruct, or any other code
 
 ## Layering
 
-Three layers, with strict separation:
-
-- **Controllers** parse and validate requests, call services, return responses. No business logic, no authorization checks, no filtering logic in controllers.
-- **Services** hold business logic, enforce authorization, and own transaction boundaries. Use the same approach for role checks across all services.
-- **Repositories** do data access only.
+Three-layer separation: controllers handle HTTP; services hold business logic and enforce authorization; repositories do data access only. Detailed conventions (transaction boundaries, what can't live in each layer, package structure) live in `DEV-GUIDELINES.md`.
 
 ## Testing Approach
 
-Use integration tests that exercise the API end-to-end against a running Spring context. Test through the public surface, not internals.
+Test through the public surface, not internals. Pyramid shape, isolation, and the positive+negative pair convention live in `DEV-GUIDELINES.md` § 7.
 
 ## Code Style
 
