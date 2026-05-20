@@ -1,10 +1,12 @@
 package com.baeldung.jiralite.repository;
 
 import com.baeldung.jiralite.domain.Comment;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+
     List<Comment> findByTaskIdOrderByCreatedAtAsc(Long taskId);
 }

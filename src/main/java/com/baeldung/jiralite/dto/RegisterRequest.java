@@ -1,10 +1,10 @@
 package com.baeldung.jiralite.dto;
 
-import com.baeldung.jiralite.domain.Role;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
     @NotBlank String username,
-    @NotBlank String password,
-    Role role
-) {}
+    @NotBlank @Size(min = 6) String password
+) {
+}

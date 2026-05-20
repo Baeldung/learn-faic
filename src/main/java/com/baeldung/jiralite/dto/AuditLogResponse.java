@@ -1,28 +1,62 @@
 package com.baeldung.jiralite.dto;
 
 import com.baeldung.jiralite.domain.AuditEventType;
-import com.baeldung.jiralite.domain.AuditLog;
-
 import java.time.Instant;
 
-public record AuditLogResponse(
-    Long id,
-    AuditEventType eventType,
-    UserResponse actor,
-    String entityType,
-    Long entityId,
-    Long projectId,
-    Instant createdAt
-) {
-    public static AuditLogResponse from(AuditLog log) {
-        return new AuditLogResponse(
-            log.getId(),
-            log.getEventType(),
-            log.getActor() != null ? UserResponse.from(log.getActor()) : null,
-            log.getEntityType(),
-            log.getEntityId(),
-            log.getProject() != null ? log.getProject().getId() : null,
-            log.getCreatedAt()
-        );
+public class AuditLogResponse {
+
+    private Long id;
+    private AuditEventType eventType;
+    private String actorUsername;
+    private String entityType;
+    private Long entityId;
+    private Instant createdAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public AuditEventType getEventType() {
+        return eventType;
+    }
+
+    public void setEventType(AuditEventType eventType) {
+        this.eventType = eventType;
+    }
+
+    public String getActorUsername() {
+        return actorUsername;
+    }
+
+    public void setActorUsername(String actorUsername) {
+        this.actorUsername = actorUsername;
+    }
+
+    public String getEntityType() {
+        return entityType;
+    }
+
+    public void setEntityType(String entityType) {
+        this.entityType = entityType;
+    }
+
+    public Long getEntityId() {
+        return entityId;
+    }
+
+    public void setEntityId(Long entityId) {
+        this.entityId = entityId;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }

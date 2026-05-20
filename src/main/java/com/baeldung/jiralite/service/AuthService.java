@@ -8,6 +8,7 @@ import com.baeldung.jiralite.dto.RegisterRequest;
 import com.baeldung.jiralite.exception.ConflictException;
 import com.baeldung.jiralite.repository.UserRepository;
 import com.baeldung.jiralite.security.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,32 +17,32 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+    @Autowired
+    private UserRepository userRepo;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
-    }
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @Transactional
-    public AuthResponse register(RegisterRequest req) {
-        if (userRepository.existsByUsername(req.username())) {
-            throw new ConflictException("Username already taken: " + req.username());
+    public AuthResponse register(RegisterRequest request) {
+        if (userRepo.existsByUsername(request.username())) {
+            throw new ConflictException("Username already taken: " + request.username());
         }
-        Role role = req.role() != null ? req.role() : Role.DEVELOPER;
-        User user = new User(req.username(), passwordEncoder.encode(req.password()), role);
-        userRepository.save(user);
+        User user = new User();
+        user.setUsername(request.username());
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setRole(Role.DEVELOPER);
+        userRepo.save(user);
         return new AuthResponse(jwtUtil.generate(user.getUsername()));
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest req) {
-        User user = userRepository.findByUsername(req.username())
+    public AuthResponse login(LoginRequest request) {
+        User user = userRepo.findByUsername(request.username())
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
-        if (!passwordEncoder.matches(req.password(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new BadCredentialsException("Invalid credentials");
         }
         return new AuthResponse(jwtUtil.generate(user.getUsername()));

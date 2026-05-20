@@ -1,7 +1,7 @@
-DELETE FROM audit_logs;
-DELETE FROM comments;
-DELETE FROM tasks;
-DELETE FROM sprints;
+DELETE FROM audit_log;
+DELETE FROM comment;
+DELETE FROM task;
+DELETE FROM sprint;
 DELETE FROM project_members;
-DELETE FROM projects;
+DELETE FROM project;
 DELETE FROM users;

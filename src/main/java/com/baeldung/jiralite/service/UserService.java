@@ -8,39 +8,41 @@ import com.baeldung.jiralite.dto.UserResponse;
 import com.baeldung.jiralite.exception.ForbiddenException;
 import com.baeldung.jiralite.exception.ResourceNotFoundException;
 import com.baeldung.jiralite.repository.UserRepository;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class UserService {
 
-    private final UserRepository userRepository;
-    private final AuditLogService auditLogService;
+    private static final String ENTITY_USER = "USER";
 
-    public UserService(UserRepository userRepository, AuditLogService auditLogService) {
-        this.userRepository = userRepository;
-        this.auditLogService = auditLogService;
-    }
+    @Autowired
+    private UserRepository userRepo;
+
+    @Autowired
+    private AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public List<UserResponse> listUsers() {
-        return userRepository.findAll().stream()
-            .map(UserResponse::from)
-            .toList();
+        return userRepo.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional
-    public UserResponse changeRole(Long userId, ChangeRoleRequest req, User actor) {
+    public UserResponse changeRole(Long userId, ChangeRoleRequest request, User actor) {
         if (actor.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("Only admins can change user roles");
+            throw new ForbiddenException("Only admins can change roles");
         }
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
-        user.setRole(req.role());
-        userRepository.save(user);
-        auditLogService.log(AuditEventType.USER_ROLE_CHANGED, actor, "USER", userId, null);
-        return UserResponse.from(user);
+        User user = userRepo.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setRole(request.role());
+        userRepo.save(user);
+        auditLogService.log(AuditEventType.USER_ROLE_CHANGED, actor, ENTITY_USER, userId, null);
+        return toResponse(user);
+    }
+
+    private UserResponse toResponse(User user) {
+        return new UserResponse(user.getId(), user.getUsername(), user.getRole());
     }
 }

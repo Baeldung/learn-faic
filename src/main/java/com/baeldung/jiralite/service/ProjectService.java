@@ -9,65 +9,68 @@ import com.baeldung.jiralite.dto.ProjectResponse;
 import com.baeldung.jiralite.exception.ResourceNotFoundException;
 import com.baeldung.jiralite.repository.ProjectRepository;
 import com.baeldung.jiralite.repository.UserRepository;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class ProjectService {
 
-    private final ProjectRepository projectRepository;
-    private final UserRepository userRepository;
-    private final AuditLogService auditLogService;
+    private static final String ENTITY_PROJECT = "PROJECT";
+    private static final String PROJECT_NOT_FOUND = "Project not found";
 
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
-                          AuditLogService auditLogService) {
-        this.projectRepository = projectRepository;
-        this.userRepository = userRepository;
-        this.auditLogService = auditLogService;
-    }
+    @Autowired
+    private ProjectRepository projectRepo;
+
+    @Autowired
+    private UserRepository userRepo;
+
+    @Autowired
+    private AuditLogService auditLogService;
 
     @Transactional
-    public ProjectResponse createProject(ProjectRequest req, User actor) {
-        Project project = new Project(req.name(), req.description());
+    public ProjectResponse createProject(ProjectRequest request, User actor) {
+        Project project = new Project();
+        project.setName(request.name());
+        project.setDescription(request.description());
         project.getMembers().add(actor);
-        projectRepository.save(project);
-        auditLogService.log(AuditEventType.PROJECT_CREATED, actor, "PROJECT", project.getId(), project);
-        return ProjectResponse.from(project);
+        projectRepo.save(project);
+        auditLogService.log(AuditEventType.PROJECT_CREATED, actor, ENTITY_PROJECT, project.getId(), project);
+        return toResponse(project);
     }
 
     @Transactional(readOnly = true)
     public List<ProjectResponse> listProjects() {
-        return projectRepository.findAll().stream()
-            .map(ProjectResponse::from)
-            .toList();
+        return projectRepo.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional
-    public ProjectResponse addMember(Long projectId, AddMemberRequest req, User actor) {
+    public ProjectResponse addMember(Long projectId, AddMemberRequest request, User actor) {
         Project project = findProject(projectId);
-        User user = userRepository.findById(req.userId())
-            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + req.userId()));
+        User user = userRepo.findById(request.userId())
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         project.getMembers().add(user);
-        projectRepository.save(project);
-        auditLogService.log(AuditEventType.MEMBER_ADDED, actor, "USER", req.userId(), project);
-        return ProjectResponse.from(project);
+        projectRepo.save(project);
+        auditLogService.log(AuditEventType.MEMBER_ADDED, actor, ENTITY_PROJECT, projectId, project);
+        return toResponse(project);
     }
 
     @Transactional
-    public ProjectResponse removeMember(Long projectId, Long userId, User actor) {
+    public void removeMember(Long projectId, Long userId, User actor) {
         Project project = findProject(projectId);
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
-        project.getMembers().remove(user);
-        projectRepository.save(project);
-        auditLogService.log(AuditEventType.MEMBER_REMOVED, actor, "USER", userId, project);
-        return ProjectResponse.from(project);
+        project.getMembers().removeIf(m -> m.getId().equals(userId));
+        projectRepo.save(project);
+        auditLogService.log(AuditEventType.MEMBER_REMOVED, actor, ENTITY_PROJECT, projectId, project);
     }
 
     private Project findProject(Long projectId) {
-        return projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
+        return projectRepo.findById(projectId)
+            .orElseThrow(() -> new ResourceNotFoundException(PROJECT_NOT_FOUND));
+    }
+
+    private ProjectResponse toResponse(Project project) {
+        List<Long> memberIds = project.getMembers().stream().map(User::getId).toList();
+        return new ProjectResponse(project.getId(), project.getName(), project.getDescription(), memberIds);
     }
 }

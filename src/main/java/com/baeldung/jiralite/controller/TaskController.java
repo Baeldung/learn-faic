@@ -9,47 +9,52 @@ import com.baeldung.jiralite.dto.TransitionRequest;
 import com.baeldung.jiralite.security.UserPrincipal;
 import com.baeldung.jiralite.service.TaskService;
 import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/tasks")
 public class TaskController {
 
-    private final TaskService taskService;
-
-    public TaskController(TaskService taskService) {
-        this.taskService = taskService;
-    }
+    @Autowired
+    private TaskService taskService;
 
     @PostMapping
-    public ResponseEntity<TaskResponse> createTask(@Valid @RequestBody TaskRequest req,
-                                                   @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(taskService.createTask(req, principal.getUser()));
+    public ResponseEntity<TaskResponse> createTask(@RequestBody @Valid TaskRequest request,
+        @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+            taskService.createTask(request, principal.getUser())
+        );
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<TaskResponse> updateTask(@PathVariable Long id,
-                                                   @RequestBody TaskUpdateRequest req,
-                                                   @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(taskService.updateTask(id, req, principal.getUser()));
+        @RequestBody TaskUpdateRequest request,
+        @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(taskService.updateTask(id, request, principal.getUser()));
     }
 
     @PostMapping("/{id}/transitions")
     public ResponseEntity<TaskResponse> transitionTask(@PathVariable Long id,
-                                                       @Valid @RequestBody TransitionRequest req,
-                                                       @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(taskService.transitionTask(id, req, principal.getUser()));
+        @RequestBody @Valid TransitionRequest request,
+        @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(taskService.transitionTask(id, request, principal.getUser()));
     }
 
     @GetMapping
     public ResponseEntity<List<TaskResponse>> listTasks(
-        @RequestParam(required = false) Long projectId,
+        @RequestParam Long projectId,
         @RequestParam(required = false) TaskStatus status,
         @RequestParam(required = false) Long assigneeId,
         @RequestParam(required = false) TaskPriority priority,

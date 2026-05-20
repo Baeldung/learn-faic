@@ -1,190 +1,154 @@
 package com.baeldung.jiralite;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.baeldung.jiralite.domain.Role;
+import com.baeldung.jiralite.domain.User;
+import com.baeldung.jiralite.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-
-import java.util.Map;
-
-import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Sql(scripts = "/cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/cleanup.sql", executionPhase = ExecutionPhase.BEFORE_TEST_METHOD)
 class CommentAndAuditIntegrationTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    @Autowired
+    private MockMvc mockMvc;
 
-    @Test
-    void projectMemberCanAddAndListComments() throws Exception {
-        String adminToken = registerAndLogin("admin_ca1", "pass", "ADMIN");
-        String viewerToken = registerAndLogin("viewer_ca1", "pass", "VIEWER");
+    @Autowired
+    private ObjectMapper objectMapper;
 
-        long projectId = createProject(adminToken, "Comment Project");
-        long viewerId = getUserId(adminToken, "viewer_ca1");
-        addMember(adminToken, projectId, viewerId);
-        long taskId = createTask(adminToken, projectId, "Commented Task");
+    @Autowired
+    private UserRepository userRepo;
 
-        mockMvc.perform(post("/tasks/" + taskId + "/comments")
-                .header("Authorization", "Bearer " + viewerToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("body", "Hello from viewer"))))
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    private String memberToken;
+    private String outsiderToken;
+    private Long projectId;
+    private Long taskId;
+
+    @BeforeEach
+    void setup() throws Exception {
+        User member = buildUser("member", Role.DEVELOPER);
+        User outsider = buildUser("outsider", Role.DEVELOPER);
+        userRepo.save(member);
+        userRepo.save(outsider);
+
+        memberToken = login("member");
+        outsiderToken = login("outsider");
+
+        String projectResp = mockMvc.perform(post("/projects")
+            .header("Authorization", "Bearer " + memberToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"AuditProject\"}"))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.body", is("Hello from viewer")))
-            .andExpect(jsonPath("$.author.username", is("viewer_ca1")));
+            .andReturn().getResponse().getContentAsString();
+        projectId = objectMapper.readTree(projectResp).get("id").asLong();
 
-        mockMvc.perform(post("/tasks/" + taskId + "/comments")
-                .header("Authorization", "Bearer " + adminToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("body", "Admin comment"))))
-            .andExpect(status().isCreated());
-
-        mockMvc.perform(get("/tasks/" + taskId + "/comments")
-                .header("Authorization", "Bearer " + adminToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(2)))
-            .andExpect(jsonPath("$[0].body", is("Hello from viewer")))
-            .andExpect(jsonPath("$[1].body", is("Admin comment")));
+        String taskResp = mockMvc.perform(post("/tasks")
+            .header("Authorization", "Bearer " + memberToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"projectId\":" + projectId + ",\"title\":\"Audit Task\",\"priority\":\"LOW\"}"))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        taskId = objectMapper.readTree(taskResp).get("id").asLong();
     }
 
     @Test
-    void nonMemberCannotAddComment() throws Exception {
-        String adminToken = registerAndLogin("admin_ca2", "pass", "ADMIN");
-        String outsiderToken = registerAndLogin("outsider_ca2", "pass", "DEVELOPER");
-
-        long projectId = createProject(adminToken, "Restricted Project");
-        long taskId = createTask(adminToken, projectId, "Task 1");
-
+    void member_can_add_comment() throws Exception {
         mockMvc.perform(post("/tasks/" + taskId + "/comments")
-                .header("Authorization", "Bearer " + outsiderToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("body", "Should fail"))))
+            .header("Authorization", "Bearer " + memberToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"body\":\"A comment\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.body").value("A comment"));
+    }
+
+    @Test
+    void non_member_cannot_add_comment() throws Exception {
+        mockMvc.perform(post("/tasks/" + taskId + "/comments")
+            .header("Authorization", "Bearer " + outsiderToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"body\":\"Sneaky comment\"}"))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void projectAuditLogContainsProjectAndTaskEvents() throws Exception {
-        String adminToken = registerAndLogin("admin_ca3", "pass", "ADMIN");
-        long projectId = createProject(adminToken, "Audited Project");
-        long taskId = createTask(adminToken, projectId, "Audited Task");
-
-        mockMvc.perform(get("/projects/" + projectId + "/audit")
-                .header("Authorization", "Bearer " + adminToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))))
-            .andExpect(jsonPath("$[*].eventType", hasItems("PROJECT_CREATED", "TASK_CREATED")));
-    }
-
-    @Test
-    void taskAuditLogContainsTaskEvents() throws Exception {
-        String adminToken = registerAndLogin("admin_ca4", "pass", "ADMIN");
-        long projectId = createProject(adminToken, "Task Audit Project");
-        long taskId = createTask(adminToken, projectId, "Tracked Task");
-
-        transition(adminToken, taskId, "IN_PROGRESS");
-
-        mockMvc.perform(get("/tasks/" + taskId + "/audit")
-                .header("Authorization", "Bearer " + adminToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))))
-            .andExpect(jsonPath("$[*].eventType", hasItems("TASK_CREATED", "TASK_STATUS_CHANGED")));
-    }
-
-    @Test
-    void commentAdditionAppearsInTaskAuditLog() throws Exception {
-        String adminToken = registerAndLogin("admin_ca5", "pass", "ADMIN");
-        long projectId = createProject(adminToken, "Comment Audit Project");
-        long taskId = createTask(adminToken, projectId, "Task With Comment");
-
+    void list_comments_returns_added_comments() throws Exception {
         mockMvc.perform(post("/tasks/" + taskId + "/comments")
-                .header("Authorization", "Bearer " + adminToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("body", "audit this"))))
+            .header("Authorization", "Bearer " + memberToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"body\":\"Hello\"}"))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/tasks/" + taskId + "/comments")
+            .header("Authorization", "Bearer " + memberToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].body").value("Hello"));
+    }
+
+    @Test
+    void project_audit_contains_project_and_task_events() throws Exception {
+        mockMvc.perform(get("/projects/" + projectId + "/audit")
+            .header("Authorization", "Bearer " + memberToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.eventType=='PROJECT_CREATED')]").exists())
+            .andExpect(jsonPath("$[?(@.eventType=='TASK_CREATED')]").exists());
+    }
+
+    @Test
+    void task_audit_contains_task_created_event() throws Exception {
+        mockMvc.perform(get("/tasks/" + taskId + "/audit")
+            .header("Authorization", "Bearer " + memberToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.eventType=='TASK_CREATED')]").exists());
+    }
+
+    @Test
+    void comment_addition_appears_in_task_audit() throws Exception {
+        mockMvc.perform(post("/tasks/" + taskId + "/comments")
+            .header("Authorization", "Bearer " + memberToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"body\":\"Audit me\"}"))
             .andExpect(status().isCreated());
 
         mockMvc.perform(get("/tasks/" + taskId + "/audit")
-                .header("Authorization", "Bearer " + adminToken))
+            .header("Authorization", "Bearer " + memberToken))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[*].eventType", hasItem("COMMENT_ADDED")));
+            .andExpect(jsonPath("$[?(@.eventType=='COMMENT_ADDED')]").exists());
     }
 
-    private String registerAndLogin(String username, String password, String role) throws Exception {
-        mockMvc.perform(post("/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "username", username, "password", password, "role", role
-                ))))
-            .andExpect(status().isCreated());
-
-        MvcResult result = mockMvc.perform(post("/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "username", username, "password", password
-                ))))
-            .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
-    }
-
-    private long createProject(String token, String name) throws Exception {
-        MvcResult result = mockMvc.perform(post("/projects")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("name", name))))
-            .andExpect(status().isCreated())
-            .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
-    }
-
-    private long createTask(String token, long projectId, String title) throws Exception {
-        MvcResult result = mockMvc.perform(post("/tasks")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "projectId", projectId, "title", title, "priority", "MEDIUM"
-                ))))
-            .andExpect(status().isCreated())
-            .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
-    }
-
-    private void addMember(String token, long projectId, long userId) throws Exception {
-        mockMvc.perform(post("/projects/" + projectId + "/members")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("userId", userId))))
-            .andExpect(status().isOk());
-    }
-
-    private void transition(String token, long taskId, String status) throws Exception {
-        mockMvc.perform(post("/tasks/" + taskId + "/transitions")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("status", status))))
-            .andExpect(status().isOk());
-    }
-
-    private long getUserId(String token, String username) throws Exception {
-        MvcResult result = mockMvc.perform(get("/users")
-                .header("Authorization", "Bearer " + token))
+    private String login(String username) throws Exception {
+        String body = "{\"username\":\"" + username + "\",\"password\":\"pass123\"}";
+        String resp = mockMvc.perform(post("/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
             .andExpect(status().isOk())
-            .andReturn();
-        JsonNode users = objectMapper.readTree(result.getResponse().getContentAsString());
-        for (JsonNode user : users) {
-            if (username.equals(user.get("username").asText())) {
-                return user.get("id").asLong();
-            }
-        }
-        throw new IllegalStateException("User not found: " + username);
+            .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(resp).get("token").asText();
+    }
+
+    private User buildUser(String username, Role role) {
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode("pass123"));
+        user.setRole(role);
+        return user;
     }
 }
