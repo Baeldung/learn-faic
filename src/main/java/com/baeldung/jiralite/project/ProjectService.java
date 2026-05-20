@@ -1,113 +1,126 @@
 package com.baeldung.jiralite.project;
 
-import java.util.List;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.baeldung.jiralite.audit.AuditEntityType;
 import com.baeldung.jiralite.audit.AuditEventType;
-import com.baeldung.jiralite.audit.AuditService;
-import com.baeldung.jiralite.security.CurrentUser;
+import com.baeldung.jiralite.audit.AuditLogger;
+import com.baeldung.jiralite.audit.AuditWrite;
 import com.baeldung.jiralite.user.Role;
 import com.baeldung.jiralite.user.User;
 import com.baeldung.jiralite.user.UserRepository;
-import com.baeldung.jiralite.web.ForbiddenException;
 import com.baeldung.jiralite.web.NotFoundException;
+import com.baeldung.jiralite.web.ValidationException;
+import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
-
     private final UserRepository userRepository;
-
     private final ProjectMapper projectMapper;
+    private final AuditLogger audit;
 
-    private final AuditService auditService;
-
-    private final CurrentUser currentUser;
-
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
-            ProjectMapper projectMapper, AuditService auditService, CurrentUser currentUser) {
+    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, ProjectMapper projectMapper,
+                          AuditLogger audit) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.projectMapper = projectMapper;
-        this.auditService = auditService;
-        this.currentUser = currentUser;
+        this.audit = audit;
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Transactional
     public ProjectResponse createProject(CreateProjectRequest request) {
-        User actor = currentUser.get();
         Project project = new Project(request.name(), request.description());
+        User actor = audit.currentEntity();
         project.getMembers().add(actor);
         Project saved = projectRepository.save(project);
-        auditService.record(AuditEventType.PROJECT_CREATED, actor, saved.getId(), null);
+        audit.log(new AuditWrite(AuditEventType.PROJECT_CREATED, AuditEntityType.PROJECT, saved.getId(), saved.getId(), null));
         return projectMapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public List<ProjectResponse> listProjects() {
-        return projectRepository.findAll().stream()
-                .map(projectMapper::toResponse)
-                .toList();
+        List<Project> projects = audit.isAdmin()
+                ? projectRepository.findAllWithMembers()
+                : projectRepository.findAllForMember(audit.currentId());
+        return projects.stream().map(projectMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public ProjectResponse getProject(Long projectId) {
-        Project project = findEntity(projectId);
-        requireMemberOrAdmin(project, currentUser.getId());
-        return projectMapper.toResponse(project);
+        return projectMapper.toResponse(loadVisibleProject(projectId));
     }
 
-    public ProjectResponse addMember(Long projectId, AddMemberRequest request) {
-        User actor = currentUser.get();
-        Project project = findEntity(projectId);
-        requireMemberOrAdmin(project, actor.getId());
-        User newMember = userRepository.findById(request.userId())
-                .orElseThrow(() -> new NotFoundException("User " + request.userId() + " not found"));
-        project.getMembers().add(newMember);
-        auditService.record(AuditEventType.PROJECT_MEMBER_ADDED, actor, projectId, null);
-        return projectMapper.toResponse(project);
-    }
-
-    public ProjectResponse removeMember(Long projectId, Long userId) {
-        User actor = currentUser.get();
-        Project project = findEntity(projectId);
-        requireMemberOrAdmin(project, actor.getId());
-        User member = userRepository.findById(userId)
+    @Transactional
+    public ProjectResponse addMember(Long projectId, Long userId) {
+        Project project = loadProjectForManagement(projectId);
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User " + userId + " not found"));
-        project.getMembers().remove(member);
-        auditService.record(AuditEventType.PROJECT_MEMBER_REMOVED, actor, projectId, null);
+        project.getMembers().add(user);
+        audit.log(new AuditWrite(AuditEventType.MEMBER_ADDED, AuditEntityType.PROJECT, project.getId(), project.getId(),
+                "userId=" + userId));
         return projectMapper.toResponse(project);
     }
 
-    public boolean isMember(Long projectId, Long userId) {
-        return projectRepository.isMember(projectId, userId);
+    @Transactional
+    public void removeMember(Long projectId, Long userId) {
+        Project project = loadProjectForManagement(projectId);
+        boolean removed = project.getMembers().removeIf(u -> u.getId().equals(userId));
+        if (!removed) {
+            throw new NotFoundException("User " + userId + " not a member");
+        }
+        audit.log(new AuditWrite(AuditEventType.MEMBER_REMOVED, AuditEntityType.PROJECT, project.getId(), project.getId(),
+                "userId=" + userId));
     }
 
-    public Project findEntity(Long projectId) {
-        return projectRepository.findById(projectId)
-                .orElseThrow(() -> new NotFoundException("Project " + projectId + " not found"));
+    @Transactional(readOnly = true)
+    public Project loadVisibleProject(Long projectId) {
+        Project project = projectRepository.findByIdWithMembers(projectId)
+                .orElseThrow(() -> notFound(projectId));
+        if (!audit.isAdmin() && !project.hasMember(audit.currentId())) {
+            throw notFound(projectId);
+        }
+        return project;
     }
 
-    public void requireMemberOrAdmin(Project project, Long userId) {
-        boolean isAdmin = project.getMembers().stream()
-                .noneMatch(m -> m.getId().equals(userId));
-        if (isAdmin) {
-            User user = currentUser.get();
-            if (user.getRole() != Role.ADMIN) {
-                throw new ForbiddenException("Not a member of this project");
-            }
+    @Transactional(readOnly = true)
+    public void requireVisible(Long projectId) {
+        loadVisibleProject(projectId);
+    }
+
+    @Transactional(readOnly = true)
+    public void requireMember(Long projectId, Long userId) {
+        Project project = projectRepository.findByIdWithMembers(projectId)
+                .orElseThrow(() -> notFound(projectId));
+        if (!project.hasMember(userId)) {
+            throw new ValidationException("User " + userId + " is not a member of project " + projectId);
         }
     }
 
-    public void requireMemberOrAdminById(Long projectId, Long userId) {
-        if (!projectRepository.isMember(projectId, userId)) {
-            User user = currentUser.get();
-            if (user.getRole() != Role.ADMIN) {
-                throw new ForbiddenException("Not a member of this project");
-            }
+    @Transactional(readOnly = true)
+    public List<Long> visibleProjectIds() {
+        if (audit.isAdmin()) {
+            return projectRepository.findAllWithMembers().stream().map(Project::getId).toList();
         }
+        return projectRepository.findAllForMember(audit.currentId()).stream().map(Project::getId).toList();
+    }
+
+    private Project loadProjectForManagement(Long projectId) {
+        Project project = projectRepository.findByIdWithMembers(projectId)
+                .orElseThrow(() -> notFound(projectId));
+        if (audit.isAdmin()) {
+            return project;
+        }
+        if (audit.currentRole() != Role.MANAGER || !project.hasMember(audit.currentId())) {
+            throw notFound(projectId);
+        }
+        return project;
+    }
+
+    private static NotFoundException notFound(Long projectId) {
+        return new NotFoundException("Project " + projectId + " not found");
     }
 }

@@ -1,9 +1,6 @@
 package com.baeldung.jiralite.audit;
 
-import java.time.Instant;
-
 import com.baeldung.jiralite.user.User;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,13 +9,18 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
-@Table(name = "audit_logs")
-public class AuditLog {
+@Table(name = "audit_entries", indexes = {
+        @Index(name = "idx_audit_project", columnList = "project_id"),
+        @Index(name = "idx_audit_entity", columnList = "entityType,entityId")
+})
+public class AuditEntry {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,71 +34,64 @@ public class AuditLog {
     @JoinColumn(name = "actor_id", nullable = false)
     private User actor;
 
-    @Column
-    private Long projectId;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AuditEntityType entityType;
 
-    @Column
-    private Long taskId;
+    @Column(nullable = false)
+    private Long entityId;
+
+    @Column(name = "project_id")
+    private Long projectId;
 
     @Column(nullable = false)
     private Instant timestamp;
 
-    public AuditLog() {
+    @Column(length = 1000)
+    private String details;
+
+    protected AuditEntry() {
     }
 
-    public AuditLog(AuditEventType eventType, User actor, Long projectId, Long taskId, Instant timestamp) {
-        this.eventType = eventType;
+    public AuditEntry(User actor, AuditWrite write) {
         this.actor = actor;
-        this.projectId = projectId;
-        this.taskId = taskId;
-        this.timestamp = timestamp;
+        this.eventType = write.eventType();
+        this.entityType = write.entityType();
+        this.entityId = write.entityId();
+        this.projectId = write.projectId();
+        this.details = write.details();
+        this.timestamp = Instant.now();
     }
 
     public Long getId() {
         return id;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
     public AuditEventType getEventType() {
         return eventType;
-    }
-
-    public void setEventType(AuditEventType eventType) {
-        this.eventType = eventType;
     }
 
     public User getActor() {
         return actor;
     }
 
-    public void setActor(User actor) {
-        this.actor = actor;
+    public AuditEntityType getEntityType() {
+        return entityType;
+    }
+
+    public Long getEntityId() {
+        return entityId;
     }
 
     public Long getProjectId() {
         return projectId;
     }
 
-    public void setProjectId(Long projectId) {
-        this.projectId = projectId;
-    }
-
-    public Long getTaskId() {
-        return taskId;
-    }
-
-    public void setTaskId(Long taskId) {
-        this.taskId = taskId;
-    }
-
     public Instant getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(Instant timestamp) {
-        this.timestamp = timestamp;
+    public String getDetails() {
+        return details;
     }
 }

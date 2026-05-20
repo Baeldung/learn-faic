@@ -1,20 +1,19 @@
 package com.baeldung.jiralite.sprint;
 
+import jakarta.validation.Valid;
 import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
-
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/sprints")
 public class SprintController {
 
     private final SprintService sprintService;
@@ -23,24 +22,24 @@ public class SprintController {
         this.sprintService = sprintService;
     }
 
-    @PostMapping("/sprints")
+    @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public SprintResponse createSprint(@Valid @RequestBody CreateSprintRequest request) {
+    public SprintResponse create(@Valid @RequestBody CreateSprintRequest request) {
         return sprintService.createSprint(request);
     }
 
-    @GetMapping("/projects/{projectId}/sprints")
-    public List<SprintResponse> listSprints(@PathVariable Long projectId) {
-        return sprintService.listSprints(projectId);
+    @PostMapping("/{id}/start")
+    public SprintResponse start(@PathVariable Long id) {
+        return sprintService.start(id);
     }
 
-    @PostMapping("/sprints/{id}/start")
-    public SprintResponse startSprint(@PathVariable Long id) {
-        return sprintService.startSprint(id);
+    @PostMapping("/{id}/complete")
+    public SprintResponse complete(@PathVariable Long id) {
+        return sprintService.complete(id);
     }
 
-    @PostMapping("/sprints/{id}/complete")
-    public SprintResponse completeSprint(@PathVariable Long id) {
-        return sprintService.completeSprint(id);
+    @GetMapping
+    public List<SprintResponse> list(@RequestParam Long projectId) {
+        return sprintService.listForProject(projectId);
     }
 }

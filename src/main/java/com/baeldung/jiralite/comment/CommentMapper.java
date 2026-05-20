@@ -3,9 +3,9 @@ package com.baeldung.jiralite.comment;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TaskCommentMapper {
+public class CommentMapper {
 
-    public CommentResponse toResponse(TaskComment comment) {
+    public CommentResponse toResponse(Comment comment) {
         return new CommentResponse(
                 comment.getId(),
                 comment.getTask().getId(),

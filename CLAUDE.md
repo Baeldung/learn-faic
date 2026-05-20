@@ -1,6 +1,7 @@
 # Jira Lite — Project Context
 
 For detailed technical guidelines, see `DEV-GUIDELINES.md`.
+For the functional spec, see `SPEC.md`.
 
 ## Tech Stack
 

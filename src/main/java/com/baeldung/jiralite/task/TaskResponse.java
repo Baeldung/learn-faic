@@ -8,9 +8,8 @@ public record TaskResponse(
         String title,
         String description,
         TaskStatus status,
-        Priority priority,
+        TaskPriority priority,
         Long assigneeId,
         Long reporterId,
         Long sprintId,
-        LocalDate dueDate) {
-}
+        LocalDate dueDate) { }

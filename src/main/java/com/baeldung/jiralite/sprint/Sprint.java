@@ -1,9 +1,6 @@
 package com.baeldung.jiralite.sprint;
 
-import java.time.LocalDate;
-
 import com.baeldung.jiralite.project.Project;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "sprints")
@@ -24,24 +22,21 @@ public class Sprint {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
     @Column(nullable = false)
     private String name;
 
-    @Column
     private LocalDate startDate;
-
-    @Column
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SprintStatus status = SprintStatus.PLANNED;
+    private SprintStatus status;
 
-    public Sprint() {
+    protected Sprint() {
     }
 
     public Sprint(Project project, String name, LocalDate startDate, LocalDate endDate) {
@@ -49,46 +44,27 @@ public class Sprint {
         this.name = name;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.status = SprintStatus.PLANNED;
     }
 
     public Long getId() {
         return id;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
     public Project getProject() {
         return project;
-    }
-
-    public void setProject(Project project) {
-        this.project = project;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public LocalDate getStartDate() {
         return startDate;
     }
 
-    public void setStartDate(LocalDate startDate) {
-        this.startDate = startDate;
-    }
-
     public LocalDate getEndDate() {
         return endDate;
-    }
-
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
     }
 
     public SprintStatus getStatus() {

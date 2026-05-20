@@ -1,10 +1,6 @@
 package com.baeldung.jiralite.project;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import com.baeldung.jiralite.user.User;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -15,6 +11,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "projects")
@@ -27,18 +25,17 @@ public class Project {
     @Column(nullable = false)
     private String name;
 
-    @Column
+    @Column(length = 2000)
     private String description;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "project_members",
-        joinColumns = @JoinColumn(name = "project_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
+            name = "project_members",
+            joinColumns = @JoinColumn(name = "project_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> members = new HashSet<>();
 
-    public Project() {
+    protected Project() {
     }
 
     public Project(String name, String description) {
@@ -48,10 +45,6 @@ public class Project {
 
     public Long getId() {
         return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getName() {
@@ -74,7 +67,7 @@ public class Project {
         return members;
     }
 
-    public void setMembers(Set<User> members) {
-        this.members = members;
+    public boolean hasMember(Long userId) {
+        return members.stream().anyMatch(u -> u.getId().equals(userId));
     }
 }

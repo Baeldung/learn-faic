@@ -1,10 +1,8 @@
 package com.baeldung.jiralite.auth;
 
-import com.baeldung.jiralite.user.Role;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank String username,
-        @NotBlank String password,
-        Role role) {
-}
+        @NotBlank @Size(min = 3, max = 64) String username,
+        @NotBlank @Size(min = 6, max = 128) String password) { }

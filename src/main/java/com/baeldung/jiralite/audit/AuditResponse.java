@@ -2,11 +2,12 @@ package com.baeldung.jiralite.audit;
 
 import java.time.Instant;
 
-public record AuditEntryResponse(
+public record AuditResponse(
         Long id,
         AuditEventType eventType,
         Long actorId,
+        AuditEntityType entityType,
+        Long entityId,
         Long projectId,
-        Long taskId,
-        Instant timestamp) {
-}
+        Instant timestamp,
+        String details) { }

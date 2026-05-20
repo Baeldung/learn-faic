@@ -1,59 +1,59 @@
 package com.baeldung.jiralite.user;
 
-import com.baeldung.jiralite.support.TestFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
+import com.baeldung.jiralite.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class UserRoleIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    private String adminToken;
-    private String developerToken;
-    private Long targetUserId;
-
-    @BeforeEach
-    void setUp() throws Exception {
-        adminToken = TestFixtures.registerAndLogin(mockMvc, objectMapper, "radmin", "ADMIN");
-        developerToken = TestFixtures.registerAndLogin(mockMvc, objectMapper, "rdev", "DEVELOPER");
-        TestFixtures.registerAndLogin(mockMvc, objectMapper, "rtarget", "DEVELOPER");
-        targetUserId = TestFixtures.getUserId(mockMvc, objectMapper, adminToken, "rtarget");
-    }
+class UserRoleIntegrationTest extends IntegrationTestBase {
 
     @Test
-    void adminCanChangeUserRole() throws Exception {
-        mockMvc.perform(put("/api/users/" + targetUserId + "/role")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\": \"MANAGER\"}"))
+    void adminCanChangeRole() throws Exception {
+        long adminId = register("admin1", "secret123");
+        setRoleDirectly(adminId, Role.ADMIN);
+        long devId = register("dev1", "secret123");
+        String adminToken = login("admin1", "secret123");
+
+        mvc.perform(patchAs("/api/users/" + devId + "/role", adminToken, "{\"role\":\"MANAGER\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("MANAGER"));
     }
 
     @Test
-    void developerCannotChangeUserRole() throws Exception {
-        mockMvc.perform(put("/api/users/" + targetUserId + "/role")
-                        .header("Authorization", "Bearer " + developerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\": \"MANAGER\"}"))
+    void nonAdminCannotChangeRole() throws Exception {
+        long devId = register("dev2", "secret123");
+        long otherId = register("other2", "secret123");
+        String devToken = login("dev2", "secret123");
+
+        mvc.perform(patchAs("/api/users/" + otherId + "/role", devToken, "{\"role\":\"MANAGER\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cannotDemoteLastAdmin() throws Exception {
+        long adminId = register("solo", "secret123");
+        setRoleDirectly(adminId, Role.ADMIN);
+        String adminToken = login("solo", "secret123");
+
+        mvc.perform(patchAs("/api/users/" + adminId + "/role", adminToken, "{\"role\":\"DEVELOPER\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void adminCanListUsers() throws Exception {
+        long adminId = register("admin3", "secret123");
+        setRoleDirectly(adminId, Role.ADMIN);
+        register("user01", "secret123");
+        String adminToken = login("admin3", "secret123");
+
+        mvc.perform(getAs("/api/users", adminToken)).andExpect(status().isOk());
+    }
+
+    @Test
+    void nonAdminCannotListUsers() throws Exception {
+        register("plain", "secret123");
+        String token = login("plain", "secret123");
+        mvc.perform(getAs("/api/users", token)).andExpect(status().isForbidden());
     }
 }

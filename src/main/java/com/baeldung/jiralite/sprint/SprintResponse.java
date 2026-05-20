@@ -8,5 +8,4 @@ public record SprintResponse(
         String name,
         LocalDate startDate,
         LocalDate endDate,
-        SprintStatus status) {
-}
+        SprintStatus status) { }

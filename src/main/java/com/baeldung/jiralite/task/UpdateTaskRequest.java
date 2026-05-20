@@ -1,14 +1,13 @@
 package com.baeldung.jiralite.task;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
-import jakarta.validation.constraints.Size;
-
 public record UpdateTaskRequest(
-        @Size(max = 255) String title,
-        @Size(max = 2000) String description,
-        Priority priority,
+        @NotBlank String title,
+        String description,
+        @NotNull TaskPriority priority,
         Long assigneeId,
         Long sprintId,
-        LocalDate dueDate) {
-}
+        LocalDate dueDate) { }

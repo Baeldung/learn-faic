@@ -1,144 +1,112 @@
 package com.baeldung.jiralite.task;
 
+import com.baeldung.jiralite.audit.AuditEntityType;
+import com.baeldung.jiralite.audit.AuditEventType;
+import com.baeldung.jiralite.audit.AuditLogger;
+import com.baeldung.jiralite.audit.AuditWrite;
+import com.baeldung.jiralite.project.Project;
+import com.baeldung.jiralite.project.ProjectService;
+import com.baeldung.jiralite.user.User;
+import com.baeldung.jiralite.web.NotFoundException;
 import java.util.List;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.baeldung.jiralite.audit.AuditEventType;
-import com.baeldung.jiralite.audit.AuditService;
-import com.baeldung.jiralite.project.Project;
-import com.baeldung.jiralite.security.CurrentUser;
-import com.baeldung.jiralite.user.Role;
-import com.baeldung.jiralite.user.User;
-import com.baeldung.jiralite.web.ForbiddenException;
-import com.baeldung.jiralite.web.NotFoundException;
-
 @Service
-@Transactional
 public class TaskService {
 
     private final TaskRepository taskRepository;
-    private final TaskRefResolver refs;
+    private final ProjectService projectService;
     private final TaskMapper taskMapper;
-    private final AuditService auditService;
-    private final CurrentUser currentUser;
+    private final TaskAssociations associations;
+    private final AuditLogger audit;
 
-    public TaskService(TaskRepository taskRepository, TaskRefResolver refs,
-            TaskMapper taskMapper, AuditService auditService, CurrentUser currentUser) {
+    public TaskService(TaskRepository taskRepository, ProjectService projectService, TaskMapper taskMapper,
+                       TaskAssociations associations, AuditLogger audit) {
         this.taskRepository = taskRepository;
-        this.refs = refs;
+        this.projectService = projectService;
         this.taskMapper = taskMapper;
-        this.auditService = auditService;
-        this.currentUser = currentUser;
+        this.associations = associations;
+        this.audit = audit;
     }
 
+    @Transactional
     public TaskResponse createTask(CreateTaskRequest request) {
-        User actor = currentUser.get();
-        Project project = refs.requireProjectAccess(request.projectId(), actor.getId());
-
-        Task task = new Task();
-        task.setProject(project);
-        task.setTitle(request.title());
-        task.setDescription(request.description());
-        task.setPriority(request.priority());
-        task.setReporter(actor);
+        Project project = projectService.loadVisibleProject(request.projectId());
+        User reporter = audit.currentEntity();
+        Task task = new Task(project, request.title(), request.description(), request.priority(), reporter);
+        associations.apply(task, request.assigneeId(), request.sprintId());
         task.setDueDate(request.dueDate());
-
-        if (request.assigneeId() != null) {
-            task.setAssignee(refs.resolveUser(request.assigneeId()));
-        }
-        if (request.sprintId() != null) {
-            task.setSprint(refs.resolveSprint(request.sprintId()));
-        }
-
         Task saved = taskRepository.save(task);
-        auditService.record(AuditEventType.TASK_CREATED, actor, project.getId(), saved.getId());
+        audit.log(new AuditWrite(AuditEventType.TASK_CREATED, AuditEntityType.TASK, saved.getId(), project.getId(), null));
         return taskMapper.toResponse(saved);
     }
 
-    @Transactional(readOnly = true)
-    public List<TaskResponse> listTasks(Long projectId, TaskStatus status, Long assigneeId,
-            Priority priority, Long sprintId) {
-        User actor = currentUser.get();
-        refs.requireProjectAccess(projectId, actor.getId());
-        return taskRepository.findFiltered(projectId, status, assigneeId, priority, sprintId).stream()
-                .map(taskMapper::toResponse)
-                .toList();
+    @Transactional
+    public TaskResponse updateTask(Long taskId, UpdateTaskRequest request) {
+        Task task = loadVisibleTask(taskId);
+        task.setTitle(request.title());
+        task.setDescription(request.description());
+        task.setPriority(request.priority());
+        associations.apply(task, request.assigneeId(), request.sprintId());
+        task.setDueDate(request.dueDate());
+        audit.log(new AuditWrite(AuditEventType.TASK_UPDATED, AuditEntityType.TASK, task.getId(),
+                task.getProject().getId(), null));
+        return taskMapper.toResponse(task);
+    }
+
+    @Transactional
+    public TaskResponse transition(Long taskId, TaskStatus to) {
+        Task task = loadVisibleTask(taskId);
+        TaskStatus from = task.getStatus();
+        TaskWorkflow.validate(from, to, audit.currentRole());
+        task.setStatus(to);
+        audit.log(new AuditWrite(AuditEventType.TASK_STATUS_CHANGED, AuditEntityType.TASK, task.getId(),
+                task.getProject().getId(), from + " -> " + to));
+        return taskMapper.toResponse(task);
     }
 
     @Transactional(readOnly = true)
     public TaskResponse getTask(Long taskId) {
-        Task task = requireAccessibleTask(taskId);
-        return taskMapper.toResponse(task);
+        return taskMapper.toResponse(loadVisibleTask(taskId));
     }
 
-    public TaskResponse updateTask(Long taskId, UpdateTaskRequest request) {
-        User actor = currentUser.get();
-        Task task = requireAccessibleTask(taskId);
-
-        if (request.title() != null) {
-            task.setTitle(request.title());
+    @Transactional(readOnly = true)
+    public List<TaskResponse> listTasks(TaskStatus status, TaskPriority priority, Long assigneeId, Long sprintId, Long projectId) {
+        if (projectId != null) {
+            projectService.requireVisible(projectId);
         }
-        if (request.description() != null) {
-            task.setDescription(request.description());
+        List<Long> filterIds = resolveProjectIdFilter(projectId);
+        if (filterIds != null && filterIds.isEmpty()) {
+            return List.of();
         }
-        if (request.priority() != null) {
-            task.setPriority(request.priority());
-        }
-        if (request.assigneeId() != null) {
-            task.setAssignee(refs.resolveUser(request.assigneeId()));
-        }
-        if (request.sprintId() != null) {
-            task.setSprint(refs.resolveSprint(request.sprintId()));
-        }
-        if (request.dueDate() != null) {
-            task.setDueDate(request.dueDate());
-        }
-
-        auditService.record(AuditEventType.TASK_UPDATED, actor, task.getProject().getId(), taskId);
-        return taskMapper.toResponse(task);
+        return taskRepository.findTasks(filterIds, status, priority, assigneeId, sprintId).stream()
+                .map(taskMapper::toResponse).toList();
     }
 
-    public TaskResponse transition(Long taskId, TransitionTaskRequest request) {
-        User actor = currentUser.get();
-        Task task = requireAccessibleTask(taskId);
-
-        TaskStatus current = task.getStatus();
-        TaskStatus next = request.status();
-        current.validateTransitionTo(next);
-        assertPrivilegedTransition(actor, current, next);
-
-        task.setStatus(next);
-        auditService.record(AuditEventType.TASK_STATUS_CHANGED, actor, task.getProject().getId(), taskId);
-        if (current == TaskStatus.CLOSED) {
-            auditService.record(AuditEventType.TASK_REOPENED, actor, task.getProject().getId(), taskId);
+    private List<Long> resolveProjectIdFilter(Long projectId) {
+        if (audit.isAdmin()) {
+            return projectId == null ? null : List.of(projectId);
         }
-        return taskMapper.toResponse(task);
+        List<Long> visible = projectService.visibleProjectIds();
+        if (projectId == null) {
+            return visible;
+        }
+        return visible.contains(projectId) ? List.of(projectId) : List.of();
     }
 
-    public Task requireAccessibleTask(Long taskId) {
-        Task task = findEntity(taskId);
-        refs.requireProjectAccess(task.getProject(), currentUser.getId());
+    public Task loadVisibleTask(Long taskId) {
+        Task task = taskRepository.findByIdLoaded(taskId)
+                .orElseThrow(() -> taskNotFound(taskId));
+        try {
+            projectService.requireVisible(task.getProject().getId());
+        } catch (NotFoundException e) {
+            throw taskNotFound(taskId);
+        }
         return task;
     }
 
-    public Task findEntity(Long taskId) {
-        return taskRepository.findById(taskId)
-                .orElseThrow(() -> new NotFoundException("Task " + taskId + " not found"));
-    }
-
-    private void assertPrivilegedTransition(User actor, TaskStatus current, TaskStatus next) {
-        Role role = actor.getRole();
-        boolean privileged = role == Role.ADMIN || role == Role.MANAGER;
-        if (privileged) {
-            return;
-        }
-        if (next == TaskStatus.CLOSED) {
-            throw new ForbiddenException("Only MANAGER or ADMIN can close a task");
-        }
-        if (current == TaskStatus.CLOSED && next == TaskStatus.OPEN) {
-            throw new ForbiddenException("Only MANAGER or ADMIN can reopen a task");
-        }
+    private static NotFoundException taskNotFound(Long taskId) {
+        return new NotFoundException("Task " + taskId + " not found");
     }
 }

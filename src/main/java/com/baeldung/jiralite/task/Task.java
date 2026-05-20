@@ -1,11 +1,8 @@
 package com.baeldung.jiralite.task;
 
-import java.time.LocalDate;
-
 import com.baeldung.jiralite.project.Project;
 import com.baeldung.jiralite.sprint.Sprint;
 import com.baeldung.jiralite.user.User;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "tasks")
@@ -26,29 +24,29 @@ public class Task {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
     @Column(nullable = false)
     private String title;
 
-    @Column(length = 2000)
+    @Column(length = 4000)
     private String description;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TaskStatus status = TaskStatus.OPEN;
+    private TaskStatus status;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Priority priority;
+    private TaskPriority priority;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     private User assignee;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "reporter_id", nullable = false)
     private User reporter;
 
@@ -56,26 +54,26 @@ public class Task {
     @JoinColumn(name = "sprint_id")
     private Sprint sprint;
 
-    @Column
     private LocalDate dueDate;
 
-    public Task() {
+    protected Task() {
+    }
+
+    public Task(Project project, String title, String description, TaskPriority priority, User reporter) {
+        this.project = project;
+        this.title = title;
+        this.description = description;
+        this.priority = priority;
+        this.reporter = reporter;
+        this.status = TaskStatus.OPEN;
     }
 
     public Long getId() {
         return id;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
     public Project getProject() {
         return project;
-    }
-
-    public void setProject(Project project) {
-        this.project = project;
     }
 
     public String getTitle() {
@@ -102,11 +100,11 @@ public class Task {
         this.status = status;
     }
 
-    public Priority getPriority() {
+    public TaskPriority getPriority() {
         return priority;
     }
 
-    public void setPriority(Priority priority) {
+    public void setPriority(TaskPriority priority) {
         this.priority = priority;
     }
 
@@ -120,10 +118,6 @@ public class Task {
 
     public User getReporter() {
         return reporter;
-    }
-
-    public void setReporter(User reporter) {
-        this.reporter = reporter;
     }
 
     public Sprint getSprint() {
