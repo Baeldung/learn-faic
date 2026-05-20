@@ -36,3 +36,13 @@ After each change to the code:
 - Run `mvn checkstyle:check` — fix any style violations before moving on.
 
 Don't continue with a failing build.
+
+## Sub-Agents
+
+When the build has bulky, bounded sections (e.g., the full API surface), dispatch the work to a sub-agent rather than implementing inline. The orchestrator plans and integrates; the sub-agent executes.
+
+## Models
+
+Use Opus for planning, decomposition, and judgment calls. Use Sonnet for mechanical execution where the decisions have already been made.
+
+This applies at every agent layer. When the main agent finishes planning and starts executing, switch to Sonnet. Sub-agents dispatched for execution work run on Sonnet from the start.

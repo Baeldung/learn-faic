@@ -9,14 +9,22 @@ public class TaskRequest {
 
     @NotNull
     private Long projectId;
+
     @NotBlank
     private String title;
+
     private String description;
-    @NotNull
+
     private TaskPriority priority;
+
     private Long assigneeId;
+
     private Long sprintId;
+
     private LocalDate dueDate;
+
+    public TaskRequest() {
+    }
 
     public Long getProjectId() {
         return projectId;

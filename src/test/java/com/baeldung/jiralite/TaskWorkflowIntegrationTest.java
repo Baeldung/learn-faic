@@ -1,26 +1,23 @@
 package com.baeldung.jiralite;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.baeldung.jiralite.domain.Role;
-import com.baeldung.jiralite.domain.User;
-import com.baeldung.jiralite.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.jdbc.Sql;
-import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Sql(scripts = "/cleanup.sql", executionPhase = ExecutionPhase.BEFORE_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class TaskWorkflowIntegrationTest {
 
     @Autowired
@@ -29,125 +26,193 @@ class TaskWorkflowIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private UserRepository userRepo;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
+    private String adminToken;
     private String managerToken;
     private String developerToken;
-    private Long taskId;
+    private long projectId;
 
     @BeforeEach
-    void setup() throws Exception {
-        User manager = buildUser("mgr", Role.MANAGER);
-        User developer = buildUser("dev", Role.DEVELOPER);
-        userRepo.save(manager);
-        userRepo.save(developer);
+    void setUp() throws Exception {
+        adminToken = TestHelper.registerAndLogin(mockMvc, objectMapper,
+            "admin", "pass", "ADMIN");
+        managerToken = TestHelper.registerAndLogin(mockMvc, objectMapper,
+            "manager", "pass", "MANAGER");
+        developerToken = TestHelper.registerAndLogin(mockMvc, objectMapper,
+            "developer", "pass", "DEVELOPER");
 
-        managerToken = login("mgr");
-        developerToken = login("dev");
+        // Admin creates the project (auto-added as member)
+        projectId = TestHelper.createProject(mockMvc, objectMapper, adminToken, "Workflow Project");
 
-        String projectResp = mockMvc.perform(post("/projects")
-            .header("Authorization", "Bearer " + managerToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"name\":\"P\"}"))
-            .andExpect(status().isCreated())
-            .andReturn().getResponse().getContentAsString();
-        long projectId = objectMapper.readTree(projectResp).get("id").asLong();
+        // Add manager and developer as members
+        long managerId = TestHelper.getUserId(mockMvc, objectMapper, adminToken, "manager");
+        long developerId = TestHelper.getUserId(mockMvc, objectMapper, adminToken, "developer");
 
-        mockMvc.perform(post("/projects/" + projectId + "/members")
-            .header("Authorization", "Bearer " + managerToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"userId\":" + developer.getId() + "}"))
+        mockMvc.perform(post("/api/projects/" + projectId + "/members")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("userId", managerId))))
             .andExpect(status().isOk());
 
-        String taskResp = mockMvc.perform(post("/tasks")
-            .header("Authorization", "Bearer " + managerToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"MEDIUM\"}"))
-            .andExpect(status().isCreated())
-            .andReturn().getResponse().getContentAsString();
-        taskId = objectMapper.readTree(taskResp).get("id").asLong();
+        mockMvc.perform(post("/api/projects/" + projectId + "/members")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("userId", developerId))))
+            .andExpect(status().isOk());
     }
 
     @Test
-    void valid_transitions_succeed() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "IN_REVIEW", managerToken, status().isOk());
-        doTransition(taskId, "DONE", managerToken, status().isOk());
-    }
+    void happyPath_fullWorkflow_OPEN_to_CLOSED() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Full workflow task");
 
-    @Test
-    void developer_cannot_close_task() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "IN_REVIEW", managerToken, status().isOk());
-        doTransition(taskId, "DONE", managerToken, status().isOk());
-        doTransition(taskId, "CLOSED", developerToken, status().isForbidden());
-    }
-
-    @Test
-    void manager_can_close_task() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "IN_REVIEW", managerToken, status().isOk());
-        doTransition(taskId, "DONE", managerToken, status().isOk());
-        doTransition(taskId, "CLOSED", managerToken, status().isOk());
-    }
-
-    @Test
-    void developer_cannot_reopen_task() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "IN_REVIEW", managerToken, status().isOk());
-        doTransition(taskId, "DONE", managerToken, status().isOk());
-        doTransition(taskId, "CLOSED", managerToken, status().isOk());
-        doTransition(taskId, "OPEN", developerToken, status().isForbidden());
-    }
-
-    @Test
-    void manager_can_reopen_task() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "IN_REVIEW", managerToken, status().isOk());
-        doTransition(taskId, "DONE", managerToken, status().isOk());
-        doTransition(taskId, "CLOSED", managerToken, status().isOk());
-        doTransition(taskId, "OPEN", managerToken, status().isOk());
-    }
-
-    @Test
-    void skipping_status_returns400() throws Exception {
-        doTransition(taskId, "DONE", managerToken, status().isBadRequest());
-    }
-
-    @Test
-    void backward_transition_returns400() throws Exception {
-        doTransition(taskId, "IN_PROGRESS", managerToken, status().isOk());
-        doTransition(taskId, "OPEN", managerToken, status().isBadRequest());
-    }
-
-    private void doTransition(Long tid, String taskStatus, String token,
-        org.springframework.test.web.servlet.ResultMatcher expected) throws Exception {
-        mockMvc.perform(post("/tasks/" + tid + "/transitions")
-            .header("Authorization", "Bearer " + token)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"status\":\"" + taskStatus + "\"}"))
-            .andExpect(expected);
-    }
-
-    private String login(String username) throws Exception {
-        String body = "{\"username\":\"" + username + "\",\"password\":\"pass123\"}";
-        String resp = mockMvc.perform(post("/auth/login")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(body))
+        // OPEN -> IN_PROGRESS
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "IN_PROGRESS"))))
             .andExpect(status().isOk())
-            .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(resp).get("token").asText();
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        // IN_PROGRESS -> IN_REVIEW
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "IN_REVIEW"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("IN_REVIEW"));
+
+        // IN_REVIEW -> DONE
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "DONE"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DONE"));
+
+        // DONE -> CLOSED (manager can do this)
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + managerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "CLOSED"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CLOSED"));
     }
 
-    private User buildUser(String username, Role role) {
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(passwordEncoder.encode("pass123"));
-        user.setRole(role);
-        return user;
+    @Test
+    void invalidTransition_OPEN_to_DONE_returns409() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Invalid skip task");
+
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "DONE"))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").isString());
+    }
+
+    @Test
+    void invalidTransition_IN_PROGRESS_to_CLOSED_returns409() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Bad close task");
+
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_PROGRESS");
+
+        // Even a manager can't skip the forward path: must go IN_REVIEW -> DONE -> CLOSED.
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + managerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "CLOSED"))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").isString());
+    }
+
+    @Test
+    void closingByDeveloper_returns403() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Close by dev task");
+
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_PROGRESS");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_REVIEW");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "DONE");
+
+        // Developer tries to close — should be 403
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "CLOSED"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").isString());
+    }
+
+    @Test
+    void closingByManager_returns200() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Close by manager task");
+
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_PROGRESS");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_REVIEW");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "DONE");
+
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + managerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "CLOSED"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CLOSED"));
+    }
+
+    @Test
+    void reopen_CLOSED_to_OPEN_byManager_returns200() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Reopen task");
+
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_PROGRESS");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_REVIEW");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "DONE");
+        TestHelper.transition(mockMvc, objectMapper, managerToken, taskId, "CLOSED");
+
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + managerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "OPEN"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("OPEN"));
+    }
+
+    @Test
+    void reopen_CLOSED_to_OPEN_byDeveloper_returns403() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, developerToken,
+            projectId, "Reopen denied task");
+
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_PROGRESS");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "IN_REVIEW");
+        TestHelper.transition(mockMvc, objectMapper, developerToken, taskId, "DONE");
+        TestHelper.transition(mockMvc, objectMapper, managerToken, taskId, "CLOSED");
+
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + developerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "OPEN"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").isString());
+    }
+
+    @Test
+    void reopen_CLOSED_to_OPEN_byAdmin_returns200() throws Exception {
+        long taskId = TestHelper.createTask(mockMvc, objectMapper, adminToken,
+            projectId, "Admin reopen task");
+
+        TestHelper.transition(mockMvc, objectMapper, adminToken, taskId, "IN_PROGRESS");
+        TestHelper.transition(mockMvc, objectMapper, adminToken, taskId, "IN_REVIEW");
+        TestHelper.transition(mockMvc, objectMapper, adminToken, taskId, "DONE");
+        TestHelper.transition(mockMvc, objectMapper, adminToken, taskId, "CLOSED");
+
+        mockMvc.perform(post("/api/tasks/" + taskId + "/transition")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("status", "OPEN"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("OPEN"));
     }
 }

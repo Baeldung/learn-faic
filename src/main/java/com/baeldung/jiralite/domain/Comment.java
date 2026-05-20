@@ -12,22 +12,29 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "comment")
+@Table(name = "comments")
 public class Comment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "task_id", nullable = false)
     private Task task;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
-    @Column(nullable = false, length = 4000)
+
+    @Column(nullable = false)
     private String body;
-    @Column(nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+
+    @Column(nullable = false)
+    private Instant createdAt;
+
+    public Comment() {
+    }
 
     public Long getId() {
         return id;

@@ -2,54 +2,62 @@ package com.baeldung.jiralite.service;
 
 import com.baeldung.jiralite.domain.AuditEventType;
 import com.baeldung.jiralite.domain.AuditLog;
-import com.baeldung.jiralite.domain.Project;
 import com.baeldung.jiralite.domain.User;
 import com.baeldung.jiralite.dto.AuditLogResponse;
 import com.baeldung.jiralite.repository.AuditLogRepository;
+import java.time.Instant;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuditLogService {
 
-    private static final String ENTITY_TASK = "TASK";
+    private final AuditLogRepository auditLogRepository;
 
-    @Autowired
-    private AuditLogRepository auditLogRepo;
+    public AuditLogService(AuditLogRepository auditLogRepository) {
+        this.auditLogRepository = auditLogRepository;
+    }
 
     @Transactional
-    public void log(AuditEventType eventType, User actor, String entityType, Long entityId, Project project) {
-        AuditLog entry = new AuditLog();
-        entry.setEventType(eventType);
-        entry.setActor(actor);
-        entry.setEntityType(entityType);
-        entry.setEntityId(entityId);
-        entry.setProject(project);
-        auditLogRepo.save(entry);
+    public void record(AuditEventType eventType, User actor, Long projectId, Long taskId, String details) {
+        AuditLog log = new AuditLog();
+        log.setEventType(eventType);
+        log.setActor(actor);
+        log.setProjectId(projectId);
+        log.setTaskId(taskId);
+        log.setCreatedAt(Instant.now());
+        log.setDetails(details);
+        auditLogRepository.save(log);
     }
 
     @Transactional(readOnly = true)
-    public List<AuditLogResponse> getByProject(Long projectId) {
-        return auditLogRepo.findByProjectIdOrderByCreatedAtDesc(projectId)
-            .stream().map(this::toResponse).toList();
+    public List<AuditLogResponse> listByProject(Long projectId) {
+        return auditLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
+            .stream()
+            .map(this::toResponse)
+            .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<AuditLogResponse> getByTask(Long taskId) {
-        return auditLogRepo.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(ENTITY_TASK, taskId)
-            .stream().map(this::toResponse).toList();
+    public List<AuditLogResponse> listByTask(Long taskId) {
+        return auditLogRepository.findByTaskIdOrderByCreatedAtDesc(taskId)
+            .stream()
+            .map(this::toResponse)
+            .collect(Collectors.toList());
     }
 
-    private AuditLogResponse toResponse(AuditLog auditLog) {
-        AuditLogResponse r = new AuditLogResponse();
-        r.setId(auditLog.getId());
-        r.setEventType(auditLog.getEventType());
-        r.setActorUsername(auditLog.getActor() != null ? auditLog.getActor().getUsername() : null);
-        r.setEntityType(auditLog.getEntityType());
-        r.setEntityId(auditLog.getEntityId());
-        r.setCreatedAt(auditLog.getCreatedAt());
-        return r;
+    private AuditLogResponse toResponse(AuditLog log) {
+        Long actorId = log.getActor() != null ? log.getActor().getId() : null;
+        AuditLogResponse resp = new AuditLogResponse();
+        resp.setId(log.getId());
+        resp.setEventType(log.getEventType());
+        resp.setActorId(actorId);
+        resp.setProjectId(log.getProjectId());
+        resp.setTaskId(log.getTaskId());
+        resp.setCreatedAt(log.getCreatedAt());
+        resp.setDetails(log.getDetails());
+        return resp;
     }
 }

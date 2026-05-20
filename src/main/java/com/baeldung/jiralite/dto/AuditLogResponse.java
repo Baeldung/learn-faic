@@ -6,11 +6,21 @@ import java.time.Instant;
 public class AuditLogResponse {
 
     private Long id;
+
     private AuditEventType eventType;
-    private String actorUsername;
-    private String entityType;
-    private Long entityId;
+
+    private Long actorId;
+
+    private Long projectId;
+
+    private Long taskId;
+
     private Instant createdAt;
+
+    private String details;
+
+    public AuditLogResponse() {
+    }
 
     public Long getId() {
         return id;
@@ -28,28 +38,28 @@ public class AuditLogResponse {
         this.eventType = eventType;
     }
 
-    public String getActorUsername() {
-        return actorUsername;
+    public Long getActorId() {
+        return actorId;
     }
 
-    public void setActorUsername(String actorUsername) {
-        this.actorUsername = actorUsername;
+    public void setActorId(Long actorId) {
+        this.actorId = actorId;
     }
 
-    public String getEntityType() {
-        return entityType;
+    public Long getProjectId() {
+        return projectId;
     }
 
-    public void setEntityType(String entityType) {
-        this.entityType = entityType;
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
     }
 
-    public Long getEntityId() {
-        return entityId;
+    public Long getTaskId() {
+        return taskId;
     }
 
-    public void setEntityId(Long entityId) {
-        this.entityId = entityId;
+    public void setTaskId(Long taskId) {
+        this.taskId = taskId;
     }
 
     public Instant getCreatedAt() {
@@ -58,5 +68,13 @@ public class AuditLogResponse {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details;
     }
 }

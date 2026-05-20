@@ -2,5 +2,19 @@ package com.baeldung.jiralite.dto;
 
 import jakarta.validation.constraints.NotNull;
 
-public record AddMemberRequest(@NotNull Long userId) {
+public class AddMemberRequest {
+
+    @NotNull
+    private Long userId;
+
+    public AddMemberRequest() {
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
 }

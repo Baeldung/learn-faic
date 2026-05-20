@@ -1,24 +1,48 @@
 package com.baeldung.jiralite.service;
 
-import com.baeldung.jiralite.domain.Role;
-import com.baeldung.jiralite.domain.Task;
 import com.baeldung.jiralite.domain.TaskStatus;
 import com.baeldung.jiralite.domain.User;
-import com.baeldung.jiralite.exception.ForbiddenException;
 import com.baeldung.jiralite.exception.InvalidTransitionException;
-import org.springframework.stereotype.Service;
 
-@Service
-public class TaskTransitionValidator {
+final class TaskTransitionValidator {
 
-    public void validate(Task task, TaskStatus to, User actor) {
-        TaskStatus from = task.getStatus();
-        if (!from.canTransitionTo(to)) {
-            throw new InvalidTransitionException(from, to);
+    private TaskTransitionValidator() {
+    }
+
+    static void validate(TaskStatus from, TaskStatus to, User caller) {
+        if (from == to) {
+            return;
         }
-        boolean restricted = to == TaskStatus.CLOSED || from == TaskStatus.CLOSED;
-        if (restricted && actor.getRole() != Role.MANAGER && actor.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("Only Managers and Admins can close or reopen tasks");
+        if (to == TaskStatus.OPEN && from == TaskStatus.CLOSED) {
+            RoleChecker.requireAdminOrManager(caller);
+            return;
         }
+        requireForwardTransition(from, to);
+        if (to == TaskStatus.CLOSED) {
+            RoleChecker.requireAdminOrManager(caller);
+        }
+    }
+
+    private static void requireForwardTransition(TaskStatus from, TaskStatus to) {
+        boolean valid = isForwardTransition(from, to);
+        if (!valid) {
+            throw new InvalidTransitionException("Invalid transition: " + from + " -> " + to);
+        }
+    }
+
+    private static boolean isForwardTransition(TaskStatus from, TaskStatus to) {
+        if (from == TaskStatus.OPEN) {
+            return to == TaskStatus.IN_PROGRESS;
+        }
+        if (from == TaskStatus.IN_PROGRESS) {
+            return to == TaskStatus.IN_REVIEW;
+        }
+        if (from == TaskStatus.IN_REVIEW) {
+            return to == TaskStatus.DONE;
+        }
+        if (from == TaskStatus.DONE) {
+            return to == TaskStatus.CLOSED;
+        }
+        return false;
     }
 }

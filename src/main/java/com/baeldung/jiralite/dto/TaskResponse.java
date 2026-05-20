@@ -7,15 +7,27 @@ import java.time.LocalDate;
 public class TaskResponse {
 
     private Long id;
+
     private Long projectId;
+
     private String title;
+
     private String description;
+
     private TaskStatus status;
+
     private TaskPriority priority;
+
     private Long assigneeId;
+
     private Long reporterId;
+
     private Long sprintId;
+
     private LocalDate dueDate;
+
+    public TaskResponse() {
+    }
 
     public Long getId() {
         return id;

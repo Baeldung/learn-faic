@@ -6,11 +6,19 @@ import java.time.LocalDate;
 public class TaskUpdateRequest {
 
     private String title;
+
     private String description;
+
     private TaskPriority priority;
+
     private Long assigneeId;
+
     private Long sprintId;
+
     private LocalDate dueDate;
+
+    public TaskUpdateRequest() {
+    }
 
     public String getTitle() {
         return title;

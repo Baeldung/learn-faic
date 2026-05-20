@@ -3,7 +3,6 @@ package com.baeldung.jiralite.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import javax.crypto.SecretKey;
@@ -13,35 +12,31 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
-    private String secret;
+    private static final String CLAIM_ROLE = "role";
 
-    @Value("${jwt.expiration-ms}")
-    private long expirationMs;
+    private final SecretKey secretKey;
 
-    private SecretKey key;
+    private final long expirationMillis;
 
-    @PostConstruct
-    public void init() {
-        key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    public JwtUtil(
+            @Value("${jiralite.jwt.secret}") String secret,
+            @Value("${jiralite.jwt.expiration-millis}") long expirationMillis) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationMillis = expirationMillis;
     }
 
-    public String generate(String username) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMs);
+    public String generateToken(String username, String role) {
+        long now = System.currentTimeMillis();
         return Jwts.builder()
             .subject(username)
-            .issuedAt(now)
-            .expiration(expiry)
-            .signWith(key)
+            .claim(CLAIM_ROLE, role)
+            .issuedAt(new Date(now))
+            .expiration(new Date(now + expirationMillis))
+            .signWith(secretKey)
             .compact();
     }
 
-    public String extractUsername(String token) {
-        return parseClaims(token).getSubject();
-    }
-
-    public boolean isValid(String token) {
+    public boolean validateToken(String token) {
         try {
             parseClaims(token);
             return true;
@@ -50,7 +45,19 @@ public class JwtUtil {
         }
     }
 
+    public String getUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    public String getRole(String token) {
+        return parseClaims(token).get(CLAIM_ROLE, String.class);
+    }
+
     private Claims parseClaims(String token) {
-        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        return Jwts.parser()
+            .verifyWith(secretKey)
+            .build()
+            .parseSignedClaims(token)
+            .getPayload();
     }
 }

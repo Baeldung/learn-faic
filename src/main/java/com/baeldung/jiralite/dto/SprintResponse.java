@@ -6,11 +6,19 @@ import java.time.LocalDate;
 public class SprintResponse {
 
     private Long id;
+
     private Long projectId;
+
     private String name;
+
     private LocalDate startDate;
+
     private LocalDate endDate;
+
     private SprintStatus status;
+
+    public SprintResponse() {
+    }
 
     public Long getId() {
         return id;

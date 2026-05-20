@@ -14,27 +14,32 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "audit_log")
+@Table(name = "audit_logs")
 public class AuditLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AuditEventType eventType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actor_id")
     private User actor;
+
+    private Long projectId;
+
+    private Long taskId;
+
     @Column(nullable = false)
-    private String entityType;
-    @Column(nullable = false)
-    private Long entityId;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id")
-    private Project project;
-    @Column(nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
+
+    private String details;
+
+    public AuditLog() {
+    }
 
     public Long getId() {
         return id;
@@ -60,28 +65,20 @@ public class AuditLog {
         this.actor = actor;
     }
 
-    public String getEntityType() {
-        return entityType;
+    public Long getProjectId() {
+        return projectId;
     }
 
-    public void setEntityType(String entityType) {
-        this.entityType = entityType;
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
     }
 
-    public Long getEntityId() {
-        return entityId;
+    public Long getTaskId() {
+        return taskId;
     }
 
-    public void setEntityId(Long entityId) {
-        this.entityId = entityId;
-    }
-
-    public Project getProject() {
-        return project;
-    }
-
-    public void setProject(Project project) {
-        this.project = project;
+    public void setTaskId(Long taskId) {
+        this.taskId = taskId;
     }
 
     public Instant getCreatedAt() {
@@ -90,5 +87,13 @@ public class AuditLog {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details;
     }
 }

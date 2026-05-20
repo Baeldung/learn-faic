@@ -11,76 +11,92 @@ import com.baeldung.jiralite.exception.ConflictException;
 import com.baeldung.jiralite.exception.ResourceNotFoundException;
 import com.baeldung.jiralite.repository.ProjectRepository;
 import com.baeldung.jiralite.repository.SprintRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SprintService {
 
-    private static final String ENTITY_SPRINT = "SPRINT";
-    private static final String SPRINT_NOT_FOUND = "Sprint not found";
+    private final SprintRepository sprintRepository;
 
-    @Autowired
-    private SprintRepository sprintRepo;
+    private final ProjectRepository projectRepository;
 
-    @Autowired
-    private ProjectRepository projectRepo;
+    private final CurrentUserService currentUserService;
 
-    @Autowired
-    private AuditLogService auditLogService;
+    private final AuditLogService auditLogService;
+
+    public SprintService(SprintRepository sprintRepository,
+            ProjectRepository projectRepository,
+            CurrentUserService currentUserService,
+            AuditLogService auditLogService) {
+        this.sprintRepository = sprintRepository;
+        this.projectRepository = projectRepository;
+        this.currentUserService = currentUserService;
+        this.auditLogService = auditLogService;
+    }
 
     @Transactional
-    public SprintResponse createSprint(Long projectId, SprintRequest request, User actor) {
-        Project project = projectRepo.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+    public SprintResponse createSprint(Long projectId, SprintRequest request) {
+        User caller = currentUserService.getCurrentUser();
+        Project project = findProject(projectId);
         Sprint sprint = new Sprint();
         sprint.setProject(project);
-        sprint.setName(request.name());
-        sprint.setStartDate(request.startDate());
-        sprint.setEndDate(request.endDate());
-        sprintRepo.save(sprint);
-        auditLogService.log(AuditEventType.SPRINT_CREATED, actor, ENTITY_SPRINT, sprint.getId(), project);
+        sprint.setName(request.getName());
+        sprint.setStartDate(request.getStartDate());
+        sprint.setEndDate(request.getEndDate());
+        sprint.setStatus(SprintStatus.PLANNED);
+        sprintRepository.save(sprint);
+        auditLogService.record(AuditEventType.SPRINT_CREATED, caller, projectId, null,
+            "Sprint created: " + sprint.getName());
         return toResponse(sprint);
     }
 
     @Transactional
-    public SprintResponse startSprint(Long sprintId, User actor) {
+    public SprintResponse startSprint(Long sprintId) {
+        User caller = currentUserService.getCurrentUser();
         Sprint sprint = findSprint(sprintId);
         if (sprint.getStatus() != SprintStatus.PLANNED) {
-            throw new ConflictException("Sprint must be PLANNED to start");
+            throw new ConflictException("Sprint can only be started from PLANNED status");
         }
         sprint.setStatus(SprintStatus.ACTIVE);
-        sprintRepo.save(sprint);
-        auditLogService.log(AuditEventType.SPRINT_STARTED, actor, ENTITY_SPRINT, sprintId, sprint.getProject());
+        sprintRepository.save(sprint);
+        auditLogService.record(AuditEventType.SPRINT_STARTED, caller, sprint.getProject().getId(), null,
+            "Sprint started: " + sprint.getName());
         return toResponse(sprint);
     }
 
     @Transactional
-    public SprintResponse completeSprint(Long sprintId, User actor) {
+    public SprintResponse completeSprint(Long sprintId) {
+        User caller = currentUserService.getCurrentUser();
         Sprint sprint = findSprint(sprintId);
         if (sprint.getStatus() != SprintStatus.ACTIVE) {
-            throw new ConflictException("Sprint must be ACTIVE to complete");
+            throw new ConflictException("Sprint can only be completed from ACTIVE status");
         }
         sprint.setStatus(SprintStatus.COMPLETED);
-        sprintRepo.save(sprint);
-        auditLogService.log(AuditEventType.SPRINT_COMPLETED, actor, ENTITY_SPRINT, sprintId, sprint.getProject());
+        sprintRepository.save(sprint);
+        auditLogService.record(AuditEventType.SPRINT_COMPLETED, caller, sprint.getProject().getId(), null,
+            "Sprint completed: " + sprint.getName());
         return toResponse(sprint);
     }
 
     private Sprint findSprint(Long sprintId) {
-        return sprintRepo.findById(sprintId)
-            .orElseThrow(() -> new ResourceNotFoundException(SPRINT_NOT_FOUND));
+        return sprintRepository.findById(sprintId)
+            .orElseThrow(() -> new ResourceNotFoundException("Sprint not found: " + sprintId));
+    }
+
+    private Project findProject(Long projectId) {
+        return projectRepository.findById(projectId)
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
     }
 
     private SprintResponse toResponse(Sprint sprint) {
-        SprintResponse r = new SprintResponse();
-        r.setId(sprint.getId());
-        r.setProjectId(sprint.getProject().getId());
-        r.setName(sprint.getName());
-        r.setStartDate(sprint.getStartDate());
-        r.setEndDate(sprint.getEndDate());
-        r.setStatus(sprint.getStatus());
-        return r;
+        SprintResponse resp = new SprintResponse();
+        resp.setId(sprint.getId());
+        resp.setProjectId(sprint.getProject().getId());
+        resp.setName(sprint.getName());
+        resp.setStartDate(sprint.getStartDate());
+        resp.setEndDate(sprint.getEndDate());
+        resp.setStatus(sprint.getStatus());
+        return resp;
     }
 }

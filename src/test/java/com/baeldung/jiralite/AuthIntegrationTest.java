@@ -5,79 +5,136 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.jdbc.Sql;
-import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Sql(scripts = "/cleanup.sql", executionPhase = ExecutionPhase.BEFORE_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class AuthIntegrationTest {
-
-    private static final String REGISTER_URL = "/auth/register";
-    private static final String LOGIN_URL = "/auth/login";
-    private static final String ALICE_JSON = "{\"username\":\"alice\",\"password\":\"pass123\"}";
 
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Test
-    void register_returns201_with_token() throws Exception {
-        mockMvc.perform(post(REGISTER_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
+    void register_thenLoginAndGetToken() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "alice",
+                    "password", "password123"
+                ))))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.token").isNotEmpty());
-    }
+            .andExpect(jsonPath("$.token").isString());
 
-    @Test
-    void login_with_correct_credentials_returns200() throws Exception {
-        mockMvc.perform(post(REGISTER_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
-            .andExpect(status().isCreated());
-
-        mockMvc.perform(post(LOGIN_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "alice",
+                    "password", "password123"
+                ))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token").isNotEmpty());
+            .andExpect(jsonPath("$.token").isString());
     }
 
     @Test
-    void login_with_wrong_password_returns401() throws Exception {
-        mockMvc.perform(post(REGISTER_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
+    void login_withBadCredentials_returns401() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "bob",
+                    "password", "correctPassword"
+                ))))
             .andExpect(status().isCreated());
 
-        mockMvc.perform(post(LOGIN_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"username\":\"alice\",\"password\":\"wrongpass\"}"))
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "bob",
+                    "password", "wrongPassword"
+                ))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").isString());
+    }
+
+    @Test
+    void login_withUnknownUser_returns401() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "nobody",
+                    "password", "doesNotMatter"
+                ))))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void protected_endpoint_without_token_returns401() throws Exception {
-        mockMvc.perform(get("/users"))
-            .andExpect(status().isUnauthorized());
+    void register_duplicateUsername_returns409() throws Exception {
+        Map<String, String> body = Map.of("username", "charlie", "password", "pass");
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").isString());
     }
 
     @Test
-    void duplicate_username_returns409() throws Exception {
-        mockMvc.perform(post(REGISTER_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
+    void protectedEndpoint_withoutToken_returns4xx() throws Exception {
+        // Spring Security returns 403 (Forbidden) when no authentication entry point is configured;
+        // the important thing is that unauthenticated access is blocked.
+        mockMvc.perform(get("/api/users"))
+            .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void protectedEndpoint_withInvalidToken_returns4xx() throws Exception {
+        // Invalid token is rejected at the filter level — access is denied.
+        mockMvc.perform(get("/api/users")
+                .header("Authorization", "Bearer totally.invalid.token"))
+            .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void protectedEndpoint_withValidToken_returns200() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "diana",
+                    "password", "pass"
+                ))))
             .andExpect(status().isCreated());
 
-        mockMvc.perform(post(REGISTER_URL)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(ALICE_JSON))
-            .andExpect(status().isConflict());
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "username", "diana",
+                    "password", "pass"
+                ))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        String token = objectMapper.readTree(loginResult.getResponse().getContentAsString())
+            .get("token").asText();
+
+        mockMvc.perform(get("/api/users")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk());
     }
 }

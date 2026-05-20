@@ -5,10 +5,22 @@ import java.time.Instant;
 public class CommentResponse {
 
     private Long id;
+
     private Long taskId;
-    private String authorUsername;
+
+    private Long authorId;
+
     private String body;
+
     private Instant createdAt;
+
+    public CommentResponse(Long id, Long taskId, Long authorId, String body, Instant createdAt) {
+        this.id = id;
+        this.taskId = taskId;
+        this.authorId = authorId;
+        this.body = body;
+        this.createdAt = createdAt;
+    }
 
     public Long getId() {
         return id;
@@ -26,12 +38,12 @@ public class CommentResponse {
         this.taskId = taskId;
     }
 
-    public String getAuthorUsername() {
-        return authorUsername;
+    public Long getAuthorId() {
+        return authorId;
     }
 
-    public void setAuthorUsername(String authorUsername) {
-        this.authorUsername = authorUsername;
+    public void setAuthorId(Long authorId) {
+        this.authorId = authorId;
     }
 
     public String getBody() {

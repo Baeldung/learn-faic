@@ -1,5 +1,6 @@
 package com.baeldung.jiralite.security;
 
+import com.baeldung.jiralite.domain.Role;
 import com.baeldung.jiralite.domain.User;
 import java.util.Collection;
 import java.util.List;
@@ -9,28 +10,64 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 public class UserPrincipal implements UserDetails {
 
-    private final User user;
+    private final Long id;
+
+    private final String username;
+
+    private final String password;
+
+    private final Role role;
+
+    private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(User user) {
-        this.user = user;
+        this.id = user.getId();
+        this.username = user.getUsername();
+        this.password = user.getPassword();
+        this.role = user.getRole();
+        this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 
-    public User getUser() {
-        return user;
+    public Long getId() {
+        return id;
+    }
+
+    public Role getRole() {
+        return role;
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        return authorities;
     }
 
     @Override
     public String getPassword() {
-        return user.getPassword();
+        return password;
     }
 
     @Override
     public String getUsername() {
-        return user.getUsername();
+        return username;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
     }
 }

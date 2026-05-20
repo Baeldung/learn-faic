@@ -14,22 +14,30 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "sprint")
+@Table(name = "sprints")
 public class Sprint {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
+
     @Column(nullable = false)
     private String name;
+
     private LocalDate startDate;
+
     private LocalDate endDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SprintStatus status = SprintStatus.PLANNED;
+    private SprintStatus status;
+
+    public Sprint() {
+    }
 
     public Long getId() {
         return id;

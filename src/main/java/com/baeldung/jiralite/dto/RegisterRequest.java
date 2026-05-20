@@ -1,10 +1,42 @@
 package com.baeldung.jiralite.dto;
 
+import com.baeldung.jiralite.domain.Role;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
-public record RegisterRequest(
-    @NotBlank String username,
-    @NotBlank @Size(min = 6) String password
-) {
+public class RegisterRequest {
+
+    @NotBlank
+    private String username;
+
+    @NotBlank
+    private String password;
+
+    private Role role;
+
+    public RegisterRequest() {
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
 }
