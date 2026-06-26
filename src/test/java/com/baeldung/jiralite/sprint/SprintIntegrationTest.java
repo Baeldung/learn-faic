@@ -4,6 +4,7 @@ import com.baeldung.jiralite.IntegrationTestBase;
 import com.baeldung.jiralite.user.Role;
 import org.junit.jupiter.api.Test;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,18 +22,18 @@ class SprintIntegrationTest extends IntegrationTestBase {
         long projectId = createProjectAs(token);
 
         long sprintId = parse(mvc.perform(postAs("/api/sprints", token,
-                        "{\"projectId\":" + projectId + ",\"name\":\"S1\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("PLANNED"))
-                .andReturn()).get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"name\":\"S1\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status").value("PLANNED"))
+            .andReturn()).get("id").asLong();
 
         mvc.perform(postAs("/api/sprints/" + sprintId + "/start", token, ""))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
 
         mvc.perform(postAs("/api/sprints/" + sprintId + "/complete", token, ""))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("COMPLETED"));
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
     }
 
     @Test
@@ -42,10 +43,10 @@ class SprintIntegrationTest extends IntegrationTestBase {
         String token = login("smgr2", "secret123");
         long projectId = createProjectAs(token);
         long sprintId = parse(mvc.perform(postAs("/api/sprints", token,
-                        "{\"projectId\":" + projectId + ",\"name\":\"S1\"}")).andReturn()).get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"name\":\"S1\"}")).andReturn()).get("id").asLong();
 
         mvc.perform(postAs("/api/sprints/" + sprintId + "/complete", token, ""))
-                .andExpect(status().isConflict());
+            .andExpect(status().isConflict());
     }
 
     @Test
@@ -55,9 +56,9 @@ class SprintIntegrationTest extends IntegrationTestBase {
         String token = login("smgr3", "secret123");
         long projectId = createProjectAs(token);
         long sprintId = parse(mvc.perform(postAs("/api/sprints", token,
-                        "{\"projectId\":" + projectId + ",\"name\":\"S1\"}")).andReturn()).get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"name\":\"S1\"}")).andReturn()).get("id").asLong();
 
-        mvc.perform(postAs("/api/sprints/" + sprintId + "/start", token, "")).andExpect(status().isOk());
+        mvc.perform(postAs("/api/sprints/" + sprintId + "/start", token, "")).andExpect(status().isNoContent());
         mvc.perform(postAs("/api/sprints/" + sprintId + "/start", token, "")).andExpect(status().isConflict());
     }
 
@@ -73,6 +74,6 @@ class SprintIntegrationTest extends IntegrationTestBase {
         String devToken = login("sdev4", "secret123");
 
         mvc.perform(postAs("/api/sprints", devToken, "{\"projectId\":" + projectId + ",\"name\":\"S\"}"))
-                .andExpect(status().isForbidden());
+            .andExpect(status().isForbidden());
     }
 }

@@ -35,8 +35,9 @@ public class TaskController {
     }
 
     @PostMapping("/{id}/transition")
-    public TaskResponse transition(@PathVariable Long id, @Valid @RequestBody TransitionRequest request) {
-        return taskService.transition(id, request.status());
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void transition(@PathVariable Long id, @Valid @RequestBody TransitionRequest request) {
+        taskService.transition(id, request.status());
     }
 
     @GetMapping("/{id}")
@@ -46,11 +47,11 @@ public class TaskController {
 
     @GetMapping
     public List<TaskResponse> list(
-            @RequestParam(required = false) TaskStatus status,
-            @RequestParam(required = false) TaskPriority priority,
-            @RequestParam(required = false) Long assignee,
-            @RequestParam(required = false) Long sprint,
-            @RequestParam(required = false) Long projectId) {
+        @RequestParam(required = false) TaskStatus status,
+        @RequestParam(required = false) TaskPriority priority,
+        @RequestParam(required = false) Long assignee,
+        @RequestParam(required = false) Long sprint,
+        @RequestParam(required = false) Long projectId) {
         return taskService.listTasks(status, priority, assignee, sprint, projectId);
     }
 }

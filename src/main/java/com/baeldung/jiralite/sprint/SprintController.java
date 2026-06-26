@@ -29,13 +29,15 @@ public class SprintController {
     }
 
     @PostMapping("/{id}/start")
-    public SprintResponse start(@PathVariable Long id) {
-        return sprintService.start(id);
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void start(@PathVariable Long id) {
+        sprintService.start(id);
     }
 
     @PostMapping("/{id}/complete")
-    public SprintResponse complete(@PathVariable Long id) {
-        return sprintService.complete(id);
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void complete(@PathVariable Long id) {
+        sprintService.complete(id);
     }
 
     @GetMapping

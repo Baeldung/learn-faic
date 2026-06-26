@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>4.0.5</version>
         <relativePath/>
     </parent>
 
@@ -17,7 +17,7 @@
     <name>jiralite</name>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <jjwt.version>0.12.6</jjwt.version>
     </properties>
 

@@ -3,7 +3,7 @@ package com.baeldung.jiralite.user;
 import com.baeldung.jiralite.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class UserRoleIntegrationTest extends IntegrationTestBase {
@@ -16,8 +16,8 @@ class UserRoleIntegrationTest extends IntegrationTestBase {
         String adminToken = login("admin1", "secret123");
 
         mvc.perform(patchAs("/api/users/" + devId + "/role", adminToken, "{\"role\":\"MANAGER\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("MANAGER"));
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
     }
 
     @Test
@@ -27,7 +27,7 @@ class UserRoleIntegrationTest extends IntegrationTestBase {
         String devToken = login("dev2", "secret123");
 
         mvc.perform(patchAs("/api/users/" + otherId + "/role", devToken, "{\"role\":\"MANAGER\"}"))
-                .andExpect(status().isForbidden());
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -37,7 +37,7 @@ class UserRoleIntegrationTest extends IntegrationTestBase {
         String adminToken = login("solo", "secret123");
 
         mvc.perform(patchAs("/api/users/" + adminId + "/role", adminToken, "{\"role\":\"DEVELOPER\"}"))
-                .andExpect(status().isConflict());
+            .andExpect(status().isConflict());
     }
 
     @Test

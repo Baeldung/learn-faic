@@ -4,6 +4,7 @@ import com.baeldung.jiralite.IntegrationTestBase;
 import com.baeldung.jiralite.user.Role;
 import org.junit.jupiter.api.Test;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,7 +12,7 @@ class TaskIntegrationTest extends IntegrationTestBase {
 
     private long createProjectAs(String token, String name) throws Exception {
         return parse(mvc.perform(postAs("/api/projects", token, "{\"name\":\"" + name + "\"}")).andReturn())
-                .get("id").asLong();
+            .get("id").asLong();
     }
 
     @Test
@@ -22,9 +23,9 @@ class TaskIntegrationTest extends IntegrationTestBase {
         long projectId = createProjectAs(mgrToken, "P");
 
         mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T1\",\"priority\":\"HIGH\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("OPEN"));
+            "{\"projectId\":" + projectId + ",\"title\":\"T1\",\"priority\":\"HIGH\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status").value("OPEN"));
     }
 
     @Test
@@ -38,8 +39,8 @@ class TaskIntegrationTest extends IntegrationTestBase {
         String outsiderToken = login("outsider3", "secret123");
 
         mvc.perform(postAs("/api/tasks", outsiderToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}"))
-                .andExpect(status().isNotFound());
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}"))
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -49,11 +50,11 @@ class TaskIntegrationTest extends IntegrationTestBase {
         String mgrToken = login("tmgr3", "secret123");
         long projectId = createProjectAs(mgrToken, "P");
         long taskId = parse(mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
-                .get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
+            .get("id").asLong();
 
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"DONE\"}"))
-                .andExpect(status().isConflict());
+            .andExpect(status().isConflict());
     }
 
     @Test
@@ -63,17 +64,21 @@ class TaskIntegrationTest extends IntegrationTestBase {
         String mgrToken = login("tmgr4", "secret123");
         long projectId = createProjectAs(mgrToken, "P");
         long taskId = parse(mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
-                .get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
+            .get("id").asLong();
 
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"IN_PROGRESS\"}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"IN_REVIEW\"}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"DONE\"}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"CLOSED\"}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
     }
 
     @Test
@@ -84,17 +89,17 @@ class TaskIntegrationTest extends IntegrationTestBase {
         long projectId = createProjectAs(mgrToken, "P");
         long devId = register("tdev5", "secret123");
         mvc.perform(postAs("/api/projects/" + projectId + "/members", mgrToken, "{\"userId\":" + devId + "}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isOk());
         long taskId = parse(mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
-                .get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
+            .get("id").asLong();
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"IN_PROGRESS\"}"));
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"IN_REVIEW\"}"));
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", mgrToken, "{\"status\":\"DONE\"}"));
 
         String devToken = login("tdev5", "secret123");
         mvc.perform(postAs("/api/tasks/" + taskId + "/transition", devToken, "{\"status\":\"CLOSED\"}"))
-                .andExpect(status().isForbidden());
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -104,8 +109,8 @@ class TaskIntegrationTest extends IntegrationTestBase {
         String mgrToken = login("tmgr6", "secret123");
         long projectId = createProjectAs(mgrToken, "P");
         long taskId = parse(mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
-                .get("id").asLong();
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
+            .get("id").asLong();
 
         register("outsider6", "secret123");
         String outToken = login("outsider6", "secret123");
@@ -119,13 +124,13 @@ class TaskIntegrationTest extends IntegrationTestBase {
         String mgrToken = login("tmgr7", "secret123");
         long projectId = createProjectAs(mgrToken, "P");
         mvc.perform(postAs("/api/tasks", mgrToken,
-                "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}"));
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}"));
 
         register("outsider7", "secret123");
         String outToken = login("outsider7", "secret123");
         mvc.perform(getAs("/api/tasks", outToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -137,7 +142,7 @@ class TaskIntegrationTest extends IntegrationTestBase {
         long outsiderId = register("notmember", "secret123");
 
         mvc.perform(postAs("/api/tasks", mgrToken,
-                        "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\",\"assigneeId\":" + outsiderId + "}"))
-                .andExpect(status().isBadRequest());
+            "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\",\"assigneeId\":" + outsiderId + "}"))
+            .andExpect(status().isBadRequest());
     }
 }
