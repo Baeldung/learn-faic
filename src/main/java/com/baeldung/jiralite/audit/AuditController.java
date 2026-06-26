@@ -13,15 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class AuditController {
 
-    private final AuditRepository auditRepository;
-    private final AuditMapper auditMapper;
+    private final AuditService auditService;
     private final ProjectService projectService;
     private final TaskService taskService;
 
-    public AuditController(AuditRepository auditRepository, AuditMapper auditMapper,
-                           ProjectService projectService, TaskService taskService) {
-        this.auditRepository = auditRepository;
-        this.auditMapper = auditMapper;
+    public AuditController(AuditService auditService, ProjectService projectService, TaskService taskService) {
+        this.auditService = auditService;
         this.projectService = projectService;
         this.taskService = taskService;
     }
@@ -29,12 +26,12 @@ public class AuditController {
     @GetMapping("/projects/{id}/audit")
     public List<AuditResponse> projectAudit(@PathVariable Long id) {
         projectService.requireVisible(id);
-        return auditRepository.findByProject(id).stream().map(auditMapper::toResponse).toList();
+        return auditService.findByProject(id);
     }
 
     @GetMapping("/tasks/{id}/audit")
     public List<AuditResponse> taskAudit(@PathVariable Long id) {
         Task task = taskService.loadVisibleTask(id);
-        return auditRepository.findByTask(task.getId()).stream().map(auditMapper::toResponse).toList();
+        return auditService.findByTask(task.getId());
     }
 }
