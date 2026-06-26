@@ -39,8 +39,9 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/members")
-    public ProjectResponse addMember(@PathVariable Long id, @Valid @RequestBody AddMemberRequest request) {
-        return projectService.addMember(id, request.userId());
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void addMember(@PathVariable Long id, @Valid @RequestBody AddMemberRequest request) {
+        projectService.addMember(id, request.userId());
     }
 
     @DeleteMapping("/{id}/members/{userId}")

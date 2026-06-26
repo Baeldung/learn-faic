@@ -6,6 +6,7 @@ import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,14 +19,14 @@ class ProjectAccessIntegrationTest extends IntegrationTestBase {
         String token = login("mgr", "secret123");
 
         MvcResult created = mvc.perform(postAs("/api/projects", token, "{\"name\":\"Apollo\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Apollo"))
-                .andReturn();
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.name").value("Apollo"))
+            .andReturn();
         long projectId = parse(created).get("id").asLong();
 
         mvc.perform(getAs("/api/projects", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(projectId));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(projectId));
     }
 
     @Test
@@ -33,7 +34,7 @@ class ProjectAccessIntegrationTest extends IntegrationTestBase {
         register("dev", "secret123");
         String token = login("dev", "secret123");
         mvc.perform(postAs("/api/projects", token, "{\"name\":\"Apollo\"}"))
-                .andExpect(status().isForbidden());
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -42,13 +43,13 @@ class ProjectAccessIntegrationTest extends IntegrationTestBase {
         setRoleDirectly(managerId, Role.MANAGER);
         String mgrToken = login("mgr2", "secret123");
         long projectId = parse(mvc.perform(postAs("/api/projects", mgrToken, "{\"name\":\"Secret\"}"))
-                .andReturn()).get("id").asLong();
+            .andReturn()).get("id").asLong();
 
         register("outsider", "secret123");
         String outsiderToken = login("outsider", "secret123");
 
         mvc.perform(getAs("/api/projects/" + projectId, outsiderToken))
-                .andExpect(status().isNotFound());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -62,7 +63,7 @@ class ProjectAccessIntegrationTest extends IntegrationTestBase {
         String outsiderToken = login("outsider2", "secret123");
 
         MvcResult res = mvc.perform(getAs("/api/projects", outsiderToken))
-                .andExpect(status().isOk()).andReturn();
+            .andExpect(status().isOk()).andReturn();
         JsonNode arr = parse(res);
         org.junit.jupiter.api.Assertions.assertEquals(0, arr.size());
     }
@@ -88,13 +89,14 @@ class ProjectAccessIntegrationTest extends IntegrationTestBase {
         setRoleDirectly(managerId, Role.MANAGER);
         String mgrToken = login("mgr5", "secret123");
         long projectId = parse(mvc.perform(postAs("/api/projects", mgrToken, "{\"name\":\"P\"}"))
-                .andReturn()).get("id").asLong();
+            .andReturn()).get("id").asLong();
         long devId = register("teammate", "secret123");
 
         mvc.perform(postAs("/api/projects/" + projectId + "/members", mgrToken, "{\"userId\":" + devId + "}"))
-                .andExpect(status().isOk());
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
 
         mvc.perform(deleteAs("/api/projects/" + projectId + "/members/" + devId, mgrToken))
-                .andExpect(status().isNoContent());
+            .andExpect(status().isNoContent());
     }
 }

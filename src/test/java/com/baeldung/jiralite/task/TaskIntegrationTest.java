@@ -89,7 +89,7 @@ class TaskIntegrationTest extends IntegrationTestBase {
         long projectId = createProjectAs(mgrToken, "P");
         long devId = register("tdev5", "secret123");
         mvc.perform(postAs("/api/projects/" + projectId + "/members", mgrToken, "{\"userId\":" + devId + "}"))
-            .andExpect(status().isOk());
+            .andExpect(status().isNoContent());
         long taskId = parse(mvc.perform(postAs("/api/tasks", mgrToken,
             "{\"projectId\":" + projectId + ",\"title\":\"T\",\"priority\":\"LOW\"}")).andReturn())
             .get("id").asLong();
